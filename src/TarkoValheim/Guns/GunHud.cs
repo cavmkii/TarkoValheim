@@ -50,11 +50,11 @@ namespace TarkoValheim.Guns
                 string count;
                 if (Plugin.AmmoDisplay.Value == AmmoDisplayMode.Exact)
                 {
-                    count = $"{GunState.Mag(item)} / {gun.MagSize}";
+                    count = $"{GunState.Mag(item)} / {controller.Stats.MagSize}";
                 }
                 else
                 {
-                    count = Time.time < controller.MagCheckUntil ? Estimate(GunState.Mag(item), gun.MagSize) : "";
+                    count = Time.time < controller.MagCheckUntil ? Estimate(GunState.Mag(item), controller.Stats.MagSize) : "";
                 }
 
                 string ammo = Localization.instance.Localize(GunState.LoadedAmmoName(item));
@@ -67,7 +67,7 @@ namespace TarkoValheim.Guns
                 float fov = cam != null ? cam.fieldOfView : 65f;
                 float radius = 540f * Mathf.Tan(controller.CurrentSpread() * Mathf.Deg2Rad) / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad);
                 radius = Mathf.Clamp(radius, 4f, 200f);
-                bool covered = _sight.Update(gun, controller.Ads);
+                bool covered = _sight.Update(controller.Stats, controller.Ads);
             bool ticks = Plugin.Crosshair.Value && controller.Ads < 0.9f && !covered;
                 for (int i = 0; i < 4; i++)
                 {

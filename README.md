@@ -7,7 +7,7 @@ interchangeable.
 
 A BepInEx plugin built on [Jötunn](https://github.com/Valheim-Modding/Jotunn).
 
-## What's in 0.2.0
+## What's in 0.3.0
 
 ### Tarkov inventory
 
@@ -53,7 +53,7 @@ Firing no longer uses Valheim's crossbow attack:
   configurable). The MP-133 and Mosin load one round at a time, and firing
   interrupts the reload. Pressing R with a full magazine switches ammo type.
 - **Fire modes:** **B** toggles them (the AK has auto and semi).
-- **Recoil** kicks the view up and sideways. Higher Crossbows skill reduces it.
+- **Recoil** kicks the view up and sideways. The gun's class skill reduces it.
 - **Aim down sights:** hold **right mouse**. The camera moves to first person
   and zooms, spread tightens, and a sight picture is drawn over the screen:
   iron sights (front post in a rear notch) for most guns, and a PSO-style scope
@@ -67,13 +67,40 @@ Firing no longer uses Valheim's crossbow attack:
   `AmmoDisplay = Tarkov` hides the count except for a rough estimate after
   checking the magazine (**T**).
 
-| Gun | Caliber | Magazine | Modes | Tier |
-|---|---|---|---|---|
-| PM | 9x18 | 8 | semi | Bronze |
-| MP-133 | 12ga | 6 (tube) | pump | Bronze |
-| Mosin | 7.62x54R | 5 (stripper) | bolt | Iron |
-| SVD | 7.62x54R | 10 | semi | Black metal + silver |
-| AK-74 | 5.45x39 | 30 | auto/semi | Black metal |
+| Gun | Class | Caliber | Magazine | Modes | Tier |
+|---|---|---|---|---|---|
+| PM | Handgun | 9x18 | 8 | semi | Bronze |
+| PP-91 Kedr | SMG | 9x18 | 30 | auto/semi | Iron |
+| MP-133 | Shotgun | 12ga | 6 (tube) | pump | Bronze |
+| Mosin | Marksman | 7.62x54R | 5 (stripper) | bolt | Iron |
+| SVD | Marksman | 7.62x54R | 10 | semi | Black metal + silver |
+| AK-74 | Assault rifle | 5.45x39 | 30 | auto/semi | Black metal |
+
+### Gun skills
+
+Each gun class trains its own skill: Handguns, SMGs, Shotguns, Assault rifles
+or Marksman rifles. Hits train it. At level 100 you get 40% less recoil, 30%
+faster reloads and 30% tighter aimed spread.
+
+### Weapon modding
+
+Right-click a gun and choose **Modify weapon**. The modding panel shows one
+slot per part the gun takes (Barrel, Handguard, Stock, Muzzle, Sight,
+Magazine) and its stats against the bare gun. Drag a part onto a slot, or
+straight onto the gun in any grid, to install it. Right-click a slot to take
+the part off. Installed parts are stored on the gun, so they travel with it.
+
+- **Barrels, handguards, stocks** come in five materials: bronze, iron,
+  silver, black metal and flametal. Each tier up improves the same stats:
+  a barrel adds damage and muzzle velocity, a handguard and stock cut recoil.
+- **Muzzles:** flash hider, muzzle brake, suppressor.
+- **Sights:** reflex (red dot), 4x scope, 8x scope. These change the sight
+  picture and zoom.
+- **Magazines:** extended (+50%), drum (2.5x). Neither fits the tube-fed
+  shotgun or the Mosin.
+
+Pistols take a barrel, muzzle and magazine only. All parts are crafted at the
+Hideout.
 
 ### Raids (from 0.1.0)
 

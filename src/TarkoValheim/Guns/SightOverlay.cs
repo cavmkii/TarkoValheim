@@ -17,30 +17,54 @@ namespace TarkoValheim.Guns
         private static readonly Color Reticle = new Color(0f, 0f, 0f, 0.95f);
 
         private readonly RectTransform _irons;
+        private readonly RectTransform _reflex;
         private readonly RectTransform _scope;
         private readonly CanvasGroup _ironsGroup;
+        private readonly CanvasGroup _reflexGroup;
         private readonly CanvasGroup _scopeGroup;
 
         public SightOverlay(RectTransform root)
         {
             _irons = Layer(root, "Irons", out _ironsGroup);
+            _reflex = Layer(root, "Reflex", out _reflexGroup);
             _scope = Layer(root, "Scope", out _scopeGroup);
             BuildIrons(_irons);
+            BuildReflex(_reflex);
             BuildScope(_scope);
         }
 
         /// <summary>Returns true while a sight picture is covering the crosshair.</summary>
-        public bool Update(GunSpec gun, float ads)
+        public bool Update(GunStats stats, float ads)
         {
             // Snap in over the last part of the aim transition.
-            float alpha = gun != null ? Mathf.Clamp01((ads - 0.6f) / 0.3f) : 0f;
-            bool scope = gun != null && gun.Sight == SightType.Scope;
+            float alpha = stats != null ? Mathf.Clamp01((ads - 0.6f) / 0.3f) : 0f;
+            var sight = stats != null ? stats.Sight : SightType.Irons;
 
-            _ironsGroup.alpha = scope ? 0f : alpha;
-            _scopeGroup.alpha = scope ? alpha : 0f;
-            _irons.gameObject.SetActive(!scope && alpha > 0f);
-            _scope.gameObject.SetActive(scope && alpha > 0f);
+            Show(_irons, _ironsGroup, sight == SightType.Irons, alpha);
+            Show(_reflex, _reflexGroup, sight == SightType.Reflex, alpha);
+            Show(_scope, _scopeGroup, sight == SightType.Scope, alpha);
             return alpha > 0.5f;
+        }
+
+        private static void Show(RectTransform layer, CanvasGroup group, bool selected, float alpha)
+        {
+            group.alpha = selected ? alpha : 0f;
+            layer.gameObject.SetActive(selected && alpha > 0f);
+        }
+
+        // Red dot: a thin housing frame low in view, and a dot at the point of aim.
+        private static void BuildReflex(RectTransform root)
+        {
+            var frame = new Color(0.08f, 0.08f, 0.08f, 0.9f);
+            var center = new Vector2(0.5f, 0.5f);
+            Block(root, "FrameL", frame, center, -150f, -10f, 14f, 200f);
+            Block(root, "FrameR", frame, center, 150f, -10f, 14f, 200f);
+            Block(root, "FrameT", frame, center, 0f, 90f, 314f, 10f);
+            Block(root, "FrameB", frame, center, 0f, -112f, 314f, 18f);
+            Block(root, "Mount", frame, new Vector2(0.5f, 1f), 0f, -120f, 120f, 400f);
+            Block(root, "Glass", new Color(0.4f, 0.6f, 0.7f, 0.06f), center, 0f, -10f, 286f, 190f);
+            var dot = Block(root, "Dot", new Color(1f, 0.15f, 0.1f, 0.95f), center, 0f, 0f, 5f, 5f);
+            dot.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
         }
 
         private static RectTransform Layer(RectTransform root, string name, out CanvasGroup group)

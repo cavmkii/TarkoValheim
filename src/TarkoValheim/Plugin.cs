@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.2.4";
+        public const string PluginVersion = "0.3.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -53,6 +53,7 @@ namespace TarkoValheim
 
             BindConfig();
             BindKeys();
+            GunSkills.Register();
 
             Translations.Register();
             PrefabManager.OnVanillaPrefabsAvailable += RegisterContent;
@@ -76,6 +77,7 @@ namespace TarkoValheim
             Hideout.Register();
             Firearms.Register();
             Gear.Register();
+            GunParts.Register();
         }
 
         private void BindKeys()

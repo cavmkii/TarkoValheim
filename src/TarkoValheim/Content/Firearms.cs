@@ -7,7 +7,18 @@ namespace TarkoValheim.Content
     internal enum SightType
     {
         Irons,
+        Reflex,
         Scope
+    }
+
+    /// <summary>Which weapon skill a gun trains and benefits from.</summary>
+    internal enum GunClass
+    {
+        Handgun,
+        Smg,
+        Shotgun,
+        AssaultRifle,
+        Marksman
     }
 
     internal enum FireMode
@@ -35,6 +46,7 @@ namespace TarkoValheim.Content
     {
         public string Id;
         public string Caliber;
+        public GunClass Class;
         public int SizeW;
         public int SizeH;
         public bool Holster;
@@ -116,7 +128,7 @@ namespace TarkoValheim.Content
         {
             new GunSpec
             {
-                Id = "TV_PM", Caliber = "$tv_cal_9x18", SizeW = 2, SizeH = 1, Holster = true,
+                Id = "TV_PM", Class = GunClass.Handgun, Caliber = "$tv_cal_9x18", SizeW = 2, SizeH = 1, Holster = true,
                 MagSize = 8, ReloadTime = 2.2f, Rpm = 450, Modes = new[] { FireMode.Single },
                 RecoilUp = 1.4f, RecoilSide = 0.5f, HipSpread = 2.2f, AdsSpread = 0.7f, AdsFov = 52f,
                 Velocity = 310f, Durability = 300f, Weight = 0.75f,
@@ -124,7 +136,15 @@ namespace TarkoValheim.Content
             },
             new GunSpec
             {
-                Id = "TV_MP133", Caliber = "$tv_cal_12ga", SizeW = 5, SizeH = 1,
+                Id = "TV_Kedr", Class = GunClass.Smg, Caliber = "$tv_cal_9x18", SizeW = 3, SizeH = 1,
+                MagSize = 30, ReloadTime = 2.4f, Rpm = 900, Modes = new[] { FireMode.Auto, FireMode.Single },
+                RecoilUp = 0.75f, RecoilSide = 0.6f, HipSpread = 2.4f, AdsSpread = 0.9f, AdsFov = 55f,
+                Velocity = 310f, Durability = 350f, Weight = 1.6f,
+                Requirements = new[] { R("Iron", 10), R("Bronze", 4), R("LeatherScraps", 2) }
+            },
+            new GunSpec
+            {
+                Id = "TV_MP133", Class = GunClass.Shotgun, Caliber = "$tv_cal_12ga", SizeW = 5, SizeH = 1,
                 MagSize = 6, PerRoundReload = true, ReloadTime = 0.55f, Rpm = 55, Modes = new[] { FireMode.Single },
                 RecoilUp = 5.5f, RecoilSide = 1.5f, HipSpread = 2.5f, AdsSpread = 1.2f, AdsFov = 55f,
                 Velocity = 380f, Durability = 300f, Weight = 3.5f,
@@ -132,7 +152,7 @@ namespace TarkoValheim.Content
             },
             new GunSpec
             {
-                Id = "TV_Mosin", Caliber = "$tv_cal_762x54r", SizeW = 5, SizeH = 1,
+                Id = "TV_Mosin", Class = GunClass.Marksman, Caliber = "$tv_cal_762x54r", SizeW = 5, SizeH = 1,
                 MagSize = 5, PerRoundReload = true, ReloadTime = 0.65f, Rpm = 30, Modes = new[] { FireMode.Single },
                 RecoilUp = 6f, RecoilSide = 1f, HipSpread = 3.5f, AdsSpread = 0.08f, AdsFov = 42f,
                 Velocity = 820f, Durability = 400f, Weight = 4f,
@@ -140,7 +160,7 @@ namespace TarkoValheim.Content
             },
             new GunSpec
             {
-                Id = "TV_SVD", Caliber = "$tv_cal_762x54r", SizeW = 5, SizeH = 1,
+                Id = "TV_SVD", Class = GunClass.Marksman, Caliber = "$tv_cal_762x54r", SizeW = 5, SizeH = 1,
                 MagSize = 10, ReloadTime = 3f, Rpm = 300, Modes = new[] { FireMode.Single },
                 RecoilUp = 3.2f, RecoilSide = 1.2f, HipSpread = 3.5f, AdsSpread = 0.12f, AdsFov = 16f,
                 Sight = SightType.Scope,
@@ -149,7 +169,7 @@ namespace TarkoValheim.Content
             },
             new GunSpec
             {
-                Id = "TV_AK74", Caliber = "$tv_cal_545x39", SizeW = 4, SizeH = 2,
+                Id = "TV_AK74", Class = GunClass.AssaultRifle, Caliber = "$tv_cal_545x39", SizeW = 4, SizeH = 2,
                 MagSize = 30, ReloadTime = 2.7f, Rpm = 650, Modes = new[] { FireMode.Auto, FireMode.Single },
                 RecoilUp = 1f, RecoilSide = 0.45f, HipSpread = 3f, AdsSpread = 0.35f, AdsFov = 50f,
                 Velocity = 880f, Durability = 600f, Weight = 3.4f,

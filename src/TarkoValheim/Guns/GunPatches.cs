@@ -111,7 +111,7 @@ namespace TarkoValheim.Guns
                     return;
                 }
 
-                float ads = controller != null && controller.Gun != null ? controller.Ads : 0f;
+                float ads = controller != null && controller.Gun != null && controller.Stats != null ? controller.Ads : 0f;
                 var eyeTransform = player != null ? GameAccess.Eye(player) : null;
                 if (ads <= 0f || eyeTransform == null)
                 {
@@ -132,7 +132,7 @@ namespace TarkoValheim.Guns
                 var t = __instance.transform;
                 var eye = eyeTransform.position + t.forward * 0.12f;
                 t.position = Vector3.Lerp(t.position, eye, ads);
-                camera.fieldOfView = Mathf.Lerp(_baseFov, controller.Gun.AdsFov, ads);
+                camera.fieldOfView = Mathf.Lerp(_baseFov, controller.Stats.AdsFov, ads);
 
                 if (ads > 0.6f)
                 {
