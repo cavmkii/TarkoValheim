@@ -24,11 +24,27 @@ namespace TarkoValheim.Modding
         public float Parry;
         public float Spirit;
         public float Fire;
+
+        /// <summary>Parts fitted.</summary>
         public int Count;
+
+        /// <summary>Anything to apply: the weapon is built from parts.</summary>
+        public bool Active;
+
+        /// <summary>Differs from its standard build.</summary>
+        public bool Modified;
+
+        /// <summary>Its head (blade, limbs...) is missing: it barely works.</summary>
+        public bool MissingHead;
     }
 
     /// <summary>
-    /// Installing and removing parts on vanilla weapons. An installed part
+    /// Installing and removing parts on vanilla weapons. Every weapon with a
+    /// standard build (see <see cref="WeaponRecipes"/>) is made of parts:
+    /// crafted from them, or, if it came from somewhere else (loot, a save
+    /// from before this mod), given its standard parts at level 1 the first
+    /// time it's seen. Stats count against the standard build.
+    /// An installed part
     /// stops being an item: "id:level" is stored on the weapon
     /// (m_customData "tv_part_Head" etc.), so it travels with the weapon into
     /// chests and graves. Taking it off gives it back at the same level.
@@ -37,6 +53,50 @@ namespace TarkoValheim.Modding
     internal static class WeaponMods
     {
         private const string Prefix = "tv_part_";
+        private const string BuiltKey = "tv_part_built";
+
+        // Missing parts: no head and the weapon barely works; no handle and
+        // it's awkward and fragile.
+        private const float NoHeadDamage = -0.75f;
+        private const float NoHandleStamina = 0.3f;
+        private const float NoHandleDurability = -0.3f;
+
+        /// <summary>Fits standard parts to a weapon seen for the first time.
+        /// Returns true if it changed anything.</summary>
+        public static bool EnsureBuilt(ItemDrop.ItemData item)
+        {
+            if (item?.m_customData == null || item.m_customData.ContainsKey(BuiltKey) || !IsModular(item))
+            {
+                return false;
+            }
+            var stock = WeaponRecipes.StockFor(Gear.PrefabName(item));
+            if (stock == null)
+            {
+                return false;
+            }
+
+            Loc.Own(item);
+            foreach (var kv in stock)
+            {
+                if (!item.m_customData.ContainsKey(Prefix + kv.Key))
+                {
+                    item.m_customData[Prefix + kv.Key] = kv.Value.Id + ":1";
+                }
+            }
+            item.m_customData[BuiltKey] = "1";
+            return true;
+        }
+
+        /// <summary>A weapon just crafted: the parts it was made from.</summary>
+        public static void SetBuilt(ItemDrop.ItemData item, List<Installed> parts)
+        {
+            Loc.Own(item);
+            foreach (var p in parts)
+            {
+                item.m_customData[Prefix + p.Part.Slot] = p.Part.Id + ":" + p.Level.ToString(CultureInfo.InvariantCulture);
+            }
+            item.m_customData[BuiltKey] = "1";
+        }
 
         public static WeaponFamily FamilyOf(ItemDrop.ItemData item)
         {
@@ -137,23 +197,42 @@ namespace TarkoValheim.Modding
             }
 
             var family = FamilyOf(item);
-            var t = new PartTotals();
-            foreach (var inst in AllInstalled(item))
+            var stock = WeaponRecipes.StockFor(Gear.PrefabName(item));
+            var t = new PartTotals { Active = true };
+            foreach (var slot in WeaponParts.SlotsOf(family))
             {
-                var p = inst.Part;
-                if (!WeaponParts.Fits(p, family))
+                bool has = TryGet(item, slot, out var inst) && WeaponParts.Fits(inst.Part, family);
+                PartSpec standard = null;
+                stock?.TryGetValue(slot, out standard);
+
+                if (has)
                 {
-                    continue;
+                    Add(t, inst.Part, inst.Level, 1f);
+                    t.Count++;
                 }
-                int l = inst.Level;
-                t.Damage += p.At(p.Damage, p.DamageStep, l);
-                t.Durability += p.At(p.Durability, p.DurabilityStep, l);
-                t.Stamina += p.At(p.Stamina, p.StaminaStep, l);
-                t.Block += p.At(p.Block, p.BlockStep, l);
-                t.Parry += p.At(p.Parry, p.ParryStep, l);
-                t.Spirit += p.Spirit > 0f ? p.At(p.Spirit, p.SpiritStep, l) : 0f;
-                t.Fire += p.Fire > 0f ? p.At(p.Fire, p.FireStep, l) : 0f;
-                t.Count++;
+                if (standard != null)
+                {
+                    // Count against the standard part at level 1.
+                    Add(t, standard, 1, -1f);
+                    if (!has || inst.Part != standard || inst.Level > 1)
+                    {
+                        t.Modified = true;
+                    }
+                    if (!has && slot == PartSlot.Head)
+                    {
+                        t.Damage += NoHeadDamage;
+                        t.MissingHead = true;
+                    }
+                    if (!has && slot == PartSlot.Handle)
+                    {
+                        t.Stamina += NoHandleStamina;
+                        t.Durability += NoHandleDurability;
+                    }
+                }
+                else if (has)
+                {
+                    t.Modified = true;
+                }
             }
 
             if (Cache.Count > 512)
@@ -162,6 +241,17 @@ namespace TarkoValheim.Modding
             }
             Cache[item] = new KeyValuePair<int, PartTotals>(sig, t);
             return t;
+        }
+
+        private static void Add(PartTotals t, PartSpec p, int l, float sign)
+        {
+            t.Damage += sign * p.At(p.Damage, p.DamageStep, l);
+            t.Durability += sign * p.At(p.Durability, p.DurabilityStep, l);
+            t.Stamina += sign * p.At(p.Stamina, p.StaminaStep, l);
+            t.Block += sign * p.At(p.Block, p.BlockStep, l);
+            t.Parry += sign * p.At(p.Parry, p.ParryStep, l);
+            t.Spirit += sign * (p.Spirit > 0f ? p.At(p.Spirit, p.SpiritStep, l) : 0f);
+            t.Fire += sign * (p.Fire > 0f ? p.At(p.Fire, p.FireStep, l) : 0f);
         }
 
         /// <summary>Puts a part from <paramref name="from"/> onto the weapon,
