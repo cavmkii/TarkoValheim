@@ -42,6 +42,20 @@ namespace TarkoValheim.Guns
             return Types.TryGetValue(cls, out var type) ? type : Skills.SkillType.Crossbows;
         }
 
+        public static bool TryClass(Skills.SkillType type, out GunClass cls)
+        {
+            foreach (var kv in Types)
+            {
+                if (kv.Value == type)
+                {
+                    cls = kv.Key;
+                    return true;
+                }
+            }
+            cls = default(GunClass);
+            return false;
+        }
+
         /// <summary>0 at level 0, 1 at level 100.</summary>
         public static float Factor(Player player, GunClass cls)
         {

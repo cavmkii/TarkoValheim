@@ -29,6 +29,12 @@ namespace TarkoValheim.Raid
             _instance = this;
         }
 
+        /// <summary>True while out of every hideout's radius; null until known.</summary>
+        internal static bool? InRaid => _instance != null && _instance._known ? _instance._inRaid : (bool?)null;
+
+        internal static float RaidSeconds => _instance != null && _instance._known && _instance._inRaid
+            ? Time.time - _instance._raidStart : 0f;
+
         internal static void OnKilledInRaid()
         {
             if (_instance == null)

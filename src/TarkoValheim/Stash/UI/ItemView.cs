@@ -59,6 +59,9 @@ namespace TarkoValheim.Stash.UI
         public float Cell;
         public int Quick = -1;
 
+        // "Drop on the ground" box.
+        public bool Ground;
+
         // Weapon modding slot: which PartSlot, on which gun.
         public int ModSlot = -1;
         public ItemDrop.ItemData ModGun;

@@ -24,6 +24,12 @@ public class Character : MonoBehaviour, IDestructible
     public float GetSkillFactor(Skills.SkillType skill) { throw null; }
     public virtual void RaiseSkill(Skills.SkillType skill, float value = 1f) { }
     public virtual bool IsBlocking() { throw null; }
+    public float GetHealth() { throw null; }
+    public float GetMaxHealth() { throw null; }
+    public float GetStamina() { throw null; }
+    public virtual float GetMaxStamina() { throw null; }
+    public float GetEitr() { throw null; }
+    public virtual float GetMaxEitr() { throw null; }
     public void Damage(HitData hit) { }
     protected virtual void OnDeath() { }
 }
@@ -58,6 +64,12 @@ public class Player : Humanoid
     private void Update() { }
     public void OnSpawned() { }
     public void SetInventorySize(int rows) { }
+    public void GetAvailableRecipes(ref List<Recipe> available) { }
+    public CraftingStation GetCurrentCraftingStation() { throw null; }
+    public long GetPlayerID() { throw null; }
+    public string GetPlayerName() { throw null; }
+    private float GetBodyArmor() { throw null; }
+    private List<object> GetFoods() { throw null; }
 }
 
 public class MessageHud : MonoBehaviour
@@ -67,8 +79,52 @@ public class MessageHud : MonoBehaviour
 
 public class Skills : MonoBehaviour
 {
-    public enum SkillType { None, Swords, Knives, Clubs, Polearms, Spears, Blocking, Axes, Bows, Crossbows, All = 999 }
+    // Real values: enum constants are compiled into the mod.
+    public enum SkillType
+    {
+        None = 0, Swords = 1, Knives = 2, Clubs = 3, Polearms = 4, Spears = 5, Blocking = 6, Axes = 7, Bows = 8,
+        ElementalMagic = 9, BloodMagic = 10, Unarmed = 11, Pickaxes = 12, WoodCutting = 13, Crossbows = 14,
+        Jump = 100, Sneak = 101, Run = 102, Swim = 103, Fishing = 104, Cooking = 105, Farming = 106, Crafting = 107,
+        Ride = 110, All = 999
+    }
     public void ResetSkill(SkillType skillType) { }
+    public List<Skill> GetSkillList() { throw null; }
+
+    public class SkillDef
+    {
+        public SkillType m_skill;
+        public Sprite m_icon;
+        public string m_description;
+    }
+
+    public class Skill
+    {
+        public SkillDef m_info;
+        public float m_level;
+        private float GetLevelPercentage() { throw null; }
+    }
+}
+
+public class Recipe : ScriptableObject
+{
+    public ItemDrop m_item;
+    public int m_amount;
+    public bool m_enabled;
+    public CraftingStation m_craftingStation;
+    public CraftingStation m_repairStation;
+    public int m_minStationLevel;
+    public Piece.Requirement[] m_resources;
+}
+
+public class Piece : MonoBehaviour
+{
+    public class Requirement
+    {
+        public ItemDrop m_resItem;
+        public int m_amount;
+        public int m_amountPerLevel;
+        public int GetAmount(int qualityLevel) { throw null; }
+    }
 }
 
 public class Inventory
@@ -121,6 +177,8 @@ public class ItemDrop : MonoBehaviour
         public int m_quality;
         public float m_durability;
         public Dictionary<string, string> m_customData;
+        public long m_crafterID;
+        public string m_crafterName;
 
         public ItemData Clone() { throw null; }
         public bool IsWeapon() { throw null; }
@@ -140,6 +198,12 @@ public class ItemDrop : MonoBehaviour
             public float m_weight;
             public int m_maxStackSize;
             public int m_maxQuality;
+            public float m_armor;
+            public float m_armorPerLevel;
+            public float m_food;
+            public float m_foodStamina;
+            public float m_foodEitr;
+            public float m_foodBurnTime;
             public bool m_teleportable;
             public Attack m_attack;
             public EffectList m_triggerEffect;
@@ -197,6 +261,9 @@ public class InventoryGui : MonoBehaviour
     private RectTransform m_player;
     private RectTransform m_container;
     private Container m_currentContainer;
+    private RectTransform m_crafting;
+    private void Hide() { }
+    private bool CanRepair(ItemDrop.ItemData item) { throw null; }
 }
 
 public class Container : MonoBehaviour
@@ -211,6 +278,7 @@ public class ObjectDB : MonoBehaviour
 {
     public static ObjectDB instance { get { throw null; } }
     public GameObject GetItemPrefab(string name) { throw null; }
+    public Recipe GetRecipe(ItemDrop.ItemData item) { throw null; }
 }
 
 public static class ZInput
@@ -224,6 +292,7 @@ public static class ZInput
 public class CraftingStation : MonoBehaviour
 {
     private string m_name;
+    private int GetLevel(bool checkExtensions = true) { throw null; }
 }
 
 public class ZNetView : MonoBehaviour
