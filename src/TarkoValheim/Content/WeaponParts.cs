@@ -115,6 +115,19 @@ namespace TarkoValheim.Content
             return null;
         }
 
+        /// <summary>The part for a slot (and head kind) at a material tier, 1-5.</summary>
+        public static PartSpec FindBy(PartSlot slot, HeadKind head, int tier)
+        {
+            foreach (var part in All)
+            {
+                if (part.Slot == slot && part.Tier == tier && (slot != PartSlot.Head || part.Head == head))
+                {
+                    return part;
+                }
+            }
+            return null;
+        }
+
         /// <summary>Which head a family takes, if any.</summary>
         public static HeadKind HeadFor(WeaponFamily family)
         {

@@ -125,6 +125,7 @@ public class Piece : MonoBehaviour
         public ItemDrop m_resItem;
         public int m_amount;
         public int m_amountPerLevel;
+        public bool m_recover;
         public int GetAmount(int qualityLevel) { throw null; }
     }
 }
@@ -284,6 +285,7 @@ public class ObjectDB : MonoBehaviour
     public static ObjectDB instance { get { throw null; } }
     public GameObject GetItemPrefab(string name) { throw null; }
     public Recipe GetRecipe(ItemDrop.ItemData item) { throw null; }
+    public List<Recipe> m_recipes;
 }
 
 public static class ZInput

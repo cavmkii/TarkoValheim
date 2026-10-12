@@ -1002,7 +1002,11 @@ namespace TarkoValheim.Stash.UI
                 {
                     text += $"\n  + {UiKit.L("$" + inst.Part.Id.ToLowerInvariant())}  Lv{inst.Level}";
                 }
-                if (WeaponMods.Totals(item).Count == 0)
+                if (WeaponMods.Totals(item).MissingHead)
+                {
+                    text += "\n<color=#e0604f>" + UiKit.L("$tv_ui_missing_head") + "</color>";
+                }
+                else if (WeaponMods.Totals(item).Count == 0)
                 {
                     text += "\n" + UiKit.L("$tv_ui_no_parts_short");
                 }

@@ -40,7 +40,7 @@ namespace TarkoValheim.Modding
             try
             {
                 var t = WeaponMods.Totals(__instance);
-                if (t.Count == 0)
+                if (!t.Active)
                 {
                     return;
                 }
@@ -57,8 +57,10 @@ namespace TarkoValheim.Modding
                 __result.m_lightning *= m;
                 __result.m_poison *= m;
                 __result.m_spirit *= m;
-                __result.m_spirit += physical * m * t.Spirit;
-                __result.m_fire += physical * m * t.Fire;
+                // Relative to the standard build, so this can take away a
+                // silver weapon's spirit damage when its silver head is swapped.
+                __result.m_spirit = Mathf.Max(0f, __result.m_spirit + physical * m * t.Spirit);
+                __result.m_fire = Mathf.Max(0f, __result.m_fire + physical * m * t.Fire);
             }
             catch (System.Exception e)
             {
@@ -71,7 +73,7 @@ namespace TarkoValheim.Modding
             try
             {
                 var t = WeaponMods.Totals(__instance);
-                if (t.Count > 0)
+                if (t.Active)
                 {
                     __result *= Mathf.Max(0.2f, 1f + t.Durability);
                 }
@@ -87,7 +89,7 @@ namespace TarkoValheim.Modding
             try
             {
                 var t = WeaponMods.Totals(__instance);
-                if (t.Count > 0)
+                if (t.Active)
                 {
                     __result *= Mathf.Max(0.2f, 1f + t.Block);
                 }
@@ -103,7 +105,7 @@ namespace TarkoValheim.Modding
             try
             {
                 var t = WeaponMods.Totals(__instance);
-                if (t.Count > 0)
+                if (t.Active)
                 {
                     __result *= Mathf.Max(0.2f, 1f + t.Parry);
                 }
@@ -120,7 +122,7 @@ namespace TarkoValheim.Modding
             {
                 var weapon = _attackWeapon != null ? _attackWeapon.GetValue(__instance) as ItemDrop.ItemData : null;
                 var t = WeaponMods.Totals(weapon);
-                if (t.Count > 0)
+                if (t.Active)
                 {
                     __result *= Mathf.Max(0.2f, 1f + t.Stamina);
                 }

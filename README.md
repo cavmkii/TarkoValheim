@@ -8,7 +8,7 @@ The longer you stay out, the more the land turns on you.
 
 A BepInEx plugin built on [Jotunn](https://github.com/Valheim-Modding/Jotunn).
 
-## What's in 0.5.0
+## What's in 0.6.0
 
 ### Modular weapons
 
@@ -33,6 +33,24 @@ its slots, or drop a part straight onto the weapon in any grid.
 | Guards / rims | the five metals | block, parry force |
 | Wraps / strings / straps | leather, deer hide, troll hide, wolf pelt, lox pelt | cheaper attacks, a little block |
 
+- **Weapons are built from parts.** Every weapon and shield that uses metal
+  is crafted from its parts, not raw materials. An Iron sword takes an iron
+  blade, a grip, an iron guard and a leather wrap; the materials go into
+  making those parts.
+  - **Special ingredients stay.** Anything else the vanilla recipe needed,
+    such as eitr, trophies or black cores, is still needed.
+  - **Parts stay inside the weapon.** The best-levelled part of each kind
+    you carry goes in.
+  - **Weapons without metal keep their vanilla recipes.** Flint, wood, bone
+    and antler weapons are made as before.
+  - **It can be turned off.** Set `BuildFromParts = false` to get vanilla
+    recipes back.
+- **The standard build is the baseline.** A weapon built from its standard
+  parts at level 1 is exactly the vanilla weapon. Levelled or different
+  parts change it from there. Weapons you already had, or find as loot, get
+  their standard parts fitted the first time the mod sees them.
+- **Missing parts hurt.** Take a weapon's head off and it does a quarter of
+  its damage. Without its handle it costs more stamina and wears faster.
 - **Parts level up instead of weapons.** A part goes to level 4 in the
   CRAFTING tab (metal parts at the forge, wood and leather at the workbench).
   Weapons and shields no longer upgrade there.
@@ -42,8 +60,6 @@ its slots, or drop a part straight onto the weapon in any grid.
   come off at the level they went on.
 - **Stats change in Valheim's own numbers.** Damage, durability, block, parry
   and attack stamina all change, so the vanilla tooltip shows the result.
-- **Unchanged without parts.** A weapon with no parts is exactly the vanilla
-  weapon.
 
 ### Raids
 
@@ -179,8 +195,8 @@ NuGet. CI runs this on every push.
 
 ## How much of this is verified
 
-**One tester has run builds up to 0.4.0 in game. This version (0.5.0) hasn't
-been run yet.** The code compiles against Jotunn 2.30.2's real API and against
+**One tester has run builds up to 0.4.0 in game. Versions 0.5.0 and 0.6.0
+haven't been run yet.** The code compiles against Jotunn 2.30.2's real API and against
 hand-written stand-ins for the game. The members it touches were checked
 against EpicLoot, EquipmentAndQuickSlots and AdvancedPortals (RandyKnapp) and
 aedenthorn's mods, which patch the same methods.
@@ -188,6 +204,9 @@ aedenthorn's mods, which patch the same methods.
 Every hook is optional. If a game update renames something, that one feature
 logs a warning and turns off. These are the riskiest:
 
+- **Weapon recipes:** rewritten when the world's item database loads
+  (Jotunn's `OnItemsRegistered`). Recipes only appear once you've carried
+  every ingredient, so craft the parts first.
 - **Weapon stats:** `ItemData.GetDamage(int, float)`, `GetMaxDurability(int)`,
   `GetBaseBlockPower(int)`, `GetDeflectionForce(int)`, and
   `Attack.GetAttackStamina`.

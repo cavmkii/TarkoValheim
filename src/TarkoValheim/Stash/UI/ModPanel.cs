@@ -107,9 +107,13 @@ namespace TarkoValheim.Stash.UI
             var t = WeaponMods.Totals(weapon);
             var sb = new StringBuilder();
             sb.AppendLine("<b>" + UiKit.L("$tv_ui_part_effects") + "</b>");
-            if (t.Count == 0)
+            if (t.MissingHead)
             {
-                sb.AppendLine(UiKit.L("$tv_ui_no_parts"));
+                sb.AppendLine("<color=#e0604f>" + UiKit.L("$tv_ui_missing_head") + "</color>");
+            }
+            if (!t.Active || !t.Modified)
+            {
+                sb.AppendLine(UiKit.L(t.Count == 0 && !t.Active ? "$tv_ui_no_parts" : "$tv_ui_standard_build"));
                 return sb.ToString();
             }
             Line(sb, "$tv_stat_damage", t.Damage, false);

@@ -555,13 +555,17 @@ namespace TarkoValheim.Stash.UI
                 Corner(bg, item.m_stack.ToString(), 13, Color.white, TextAnchor.LowerRight);
             }
 
-            // Weapons: how many parts are on it.
+            // Weapons: changed from their standard build, or missing their head.
             if (WeaponMods.IsModular(item))
             {
-                int parts = WeaponMods.Totals(item).Count;
-                if (parts > 0)
+                var totals = WeaponMods.Totals(item);
+                if (totals.MissingHead)
                 {
-                    Corner(bg, "+" + parts, 12, UiKit.Accent, TextAnchor.UpperLeft);
+                    Corner(bg, UiKit.L("$tv_badge_nohead"), 11, UiKit.Warning, TextAnchor.UpperLeft);
+                }
+                else if (totals.Modified)
+                {
+                    Corner(bg, UiKit.L("$tv_badge_modded"), 11, UiKit.Accent, TextAnchor.UpperLeft);
                 }
             }
 

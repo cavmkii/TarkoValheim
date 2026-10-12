@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.5.0";
+        public const string PluginVersion = "0.6.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -35,6 +35,7 @@ namespace TarkoValheim
         internal static ConfigEntry<float> ThreatStepMinutes;
         internal static ConfigEntry<bool> PortalsOnlyInHideouts;
         internal static ConfigEntry<bool> HealthConditions;
+        internal static ConfigEntry<bool> PartRecipes;
 
         internal static ConfigEntry<bool> TetrisInventory;
         internal static ConfigEntry<int> CellSize;
@@ -52,6 +53,7 @@ namespace TarkoValheim
 
             Translations.Register();
             PrefabManager.OnVanillaPrefabsAvailable += RegisterContent;
+            ItemManager.OnItemsRegistered += () => Guarded("WeaponRecipes", WeaponRecipes.Apply);
 
             _harmony = new Harmony(PluginGuid);
             Guarded("DeathRules", () => DeathRules.Patch(_harmony));
@@ -140,6 +142,12 @@ namespace TarkoValheim
                 new ConfigDescription(
                     "If true, portals can only be built, and only work, inside a hideout's radius. " +
                     "Build a forward hideout (FOB) to portal out to it.",
+                    null, admin));
+
+            PartRecipes = Config.Bind("Weapons", "BuildFromParts", true,
+                new ConfigDescription(
+                    "If true, weapons and shields made with metal are crafted from parts (head, grip, guard, wrap) " +
+                    "instead of raw materials, and keep those parts. Takes effect on the next world load.",
                     null, admin));
 
             HealthConditions = Config.Bind("Health", "BleedsAndFractures", true,

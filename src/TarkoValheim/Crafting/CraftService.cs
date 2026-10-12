@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TarkoValheim.Content;
 using TarkoValheim.Modding;
 using TarkoValheim.Stash;
 using TarkoValheim.Util;
@@ -214,7 +215,15 @@ namespace TarkoValheim.Crafting
             bool ok = false;
             Reconciler.Batch(player, () =>
             {
-                Consume(player, entry.Recipe, 1, null);
+                var parts = Consume(player, entry.Recipe, 1, null);
+
+                // A weapon assembled from parts keeps them, at their levels.
+                if (parts.Count > 0 && WeaponMods.IsModular(item))
+                {
+                    WeaponMods.SetBuilt(item, parts);
+                    item.m_durability = item.GetMaxDurability();
+                }
+
                 if (Reconciler.CanFit(player, item, amount))
                 {
                     ok = inventory.AddItem(item);
@@ -232,8 +241,11 @@ namespace TarkoValheim.Crafting
             return ok;
         }
 
-        private static void Consume(Player player, Recipe recipe, int quality, ItemDrop.ItemData keep)
+        /// <summary>Takes the recipe's ingredients. Returns the weapon parts
+        /// among them, with their levels.</summary>
+        private static List<Installed> Consume(Player player, Recipe recipe, int quality, ItemDrop.ItemData keep)
         {
+            var parts = new List<Installed>();
             bool onlyOne = GameAccess.RequireOnlyOneIngredient(recipe);
             var sources = Sources(player);
             HideoutStash.Claim(HideoutStash.Containers(player, null));
@@ -254,8 +266,11 @@ namespace TarkoValheim.Crafting
                 foreach (var inventory in sources)
                 {
                     var matches = inventory.GetAllItems().FindAll(i => i.m_shared.m_name == name && i != keep && !Loc.IsLocked(i));
-                    // Unequipped and lowest quality go first.
-                    matches.Sort((a, b) => a.m_equipped != b.m_equipped ? (a.m_equipped ? 1 : -1) : a.m_quality.CompareTo(b.m_quality));
+                    var partSpec = WeaponParts.Find(req.m_resItem.name);
+                    // Unequipped first; then lowest quality, except weapon
+                    // parts, where the best one goes into the weapon.
+                    matches.Sort((a, b) => a.m_equipped != b.m_equipped ? (a.m_equipped ? 1 : -1)
+                        : partSpec != null ? b.m_quality.CompareTo(a.m_quality) : a.m_quality.CompareTo(b.m_quality));
                     foreach (var item in matches)
                     {
                         if (need <= 0)
@@ -266,6 +281,10 @@ namespace TarkoValheim.Crafting
                         if (item.m_equipped && n >= item.m_stack)
                         {
                             player.UnequipItem(item, false);
+                        }
+                        if (partSpec != null)
+                        {
+                            parts.Add(new Installed { Part = partSpec, Level = Mathf.Clamp(item.m_quality, 1, WeaponParts.MaxLevel) });
                         }
                         inventory.RemoveItem(item, n);
                         need -= n;
@@ -280,6 +299,7 @@ namespace TarkoValheim.Crafting
                     break;
                 }
             }
+            return parts;
         }
 
         // ------------------------------------------------------------------

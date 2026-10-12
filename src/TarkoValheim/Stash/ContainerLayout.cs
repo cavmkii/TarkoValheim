@@ -29,6 +29,10 @@ namespace TarkoValheim.Stash
             bool changed = false;
             foreach (var item in inventory.GetAllItems())
             {
+                changed |= Modding.WeaponMods.EnsureBuilt(item);
+            }
+            foreach (var item in inventory.GetAllItems())
+            {
                 var size = Loc.TryRead(item, out var loc) ? ItemSizes.Of(item, loc.Rot) : default(UnityEngine.Vector2Int);
                 if (loc.Grid == Loadout.ContainerGrid && cl.Grid.IsFree(loc.X, loc.Y, size))
                 {
