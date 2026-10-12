@@ -1,0 +1,12 @@
+<Project>
+  <!-- Local paths (VALHEIM_INSTALL, BEPINEX_PATH) live in Environment.props,
+       which is gitignored. Copy Environment.props.example to start. -->
+  <Import Project="$(MSBuildThisFileDirectory)Environment.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Environment.props')" />
+
+  <PropertyGroup>
+    <!-- Jotunn's prebuild task writes publicized copies of the game
+         assemblies into valheim_Data/Managed/publicized_assemblies. -->
+    <ExecutePrebuild Condition="'$(ExecutePrebuild)' == '' And '$(UseStubs)' != 'true'">true</ExecutePrebuild>
+  </PropertyGroup>
+</Project>

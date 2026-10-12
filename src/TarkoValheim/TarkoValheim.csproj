@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <AssemblyName>TarkoValheim</AssemblyName>
+    <RootNamespace>TarkoValheim</RootNamespace>
+    <Version>0.1.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Jotunn's package props add references to the game, BepInEx and
+         Unity assemblies under VALHEIM_INSTALL. Jotunn itself is installed
+         in the game as a separate mod, so nothing here is copied to output. -->
+    <PackageReference Include="JotunnLib" Version="2.30.2" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Compile check without a Valheim install: dotnet build -p:UseStubs=true
+       Swaps the game and BepInEx references for the hand-written signatures
+       under stubs/. Its output is not loadable in the game. -->
+  <ItemGroup Condition="'$(UseStubs)' == 'true'">
+    <Reference Remove="@(Reference)" />
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" IncludeAssets="compile" PrivateAssets="all" />
+    <PackageReference Include="HarmonyX" Version="2.10.2" IncludeAssets="compile" PrivateAssets="all" />
+    <ProjectReference Include="../../stubs/assembly_valheim/assembly_valheim.csproj" Private="false" />
+    <ProjectReference Include="../../stubs/BepInEx/BepInEx.csproj" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CheckValheimInstall" BeforeTargets="BeforeBuild" Condition="'$(UseStubs)' != 'true'">
+    <Error Condition="!Exists('$(VALHEIM_MANAGED)')"
+           Text="Valheim not found (VALHEIM_INSTALL='$(VALHEIM_INSTALL)'). Copy Environment.props.example to Environment.props and set VALHEIM_INSTALL, or build with -p:UseStubs=true for a compile check only." />
+    <Error Condition="!Exists('$(BEPINEX_PATH)/core/BepInEx.dll')"
+           Text="BepInEx not found at '$(BEPINEX_PATH)'. Install BepInExPack_Valheim into the game, or set BEPINEX_PATH in Environment.props." />
+  </Target>
+
+  <Target Name="DeployToGame" AfterTargets="Build"
+          Condition="'$(UseStubs)' != 'true' And '$(DeployToGame)' == 'true' And Exists('$(BEPINEX_PATH)')">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BEPINEX_PATH)/plugins/TarkoValheim" />
+    <Message Importance="High" Text="Deployed $(TargetFileName) to $(BEPINEX_PATH)/plugins/TarkoValheim" />
+  </Target>
+
+</Project>
