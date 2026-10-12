@@ -4,7 +4,7 @@
     <TargetFramework>net462</TargetFramework>
     <AssemblyName>TarkoValheim</AssemblyName>
     <RootNamespace>TarkoValheim</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -27,6 +27,7 @@
     <PackageReference Include="HarmonyX" Version="2.10.2" IncludeAssets="compile" PrivateAssets="all" />
     <ProjectReference Include="../../stubs/assembly_valheim/assembly_valheim.csproj" Private="false" />
     <ProjectReference Include="../../stubs/BepInEx/BepInEx.csproj" Private="false" />
+    <ProjectReference Include="../../stubs/UnityEngine.UI/UnityEngine.UI.csproj" Private="false" />
   </ItemGroup>
 
   <Target Name="CheckValheimInstall" BeforeTargets="BeforeBuild" Condition="'$(UseStubs)' != 'true'">

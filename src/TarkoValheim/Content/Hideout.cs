@@ -14,7 +14,9 @@ namespace TarkoValheim.Content
     internal static class Hideout
     {
         public const string PrefabName = "TV_Hideout";
+        public const string StashPrefab = "TV_Stash";
         private const string BasePrefab = "piece_workbench";
+        private const string StashBase = "piece_chest_blackmetal";
 
         public static void Register()
         {
@@ -46,6 +48,43 @@ namespace TarkoValheim.Content
             }
 
             piece.PiecePrefab.AddComponent<HideoutMarker>();
+            PieceManager.Instance.AddPiece(piece);
+
+            RegisterStash();
+        }
+
+        // Tarkov's stash: a big chest, 10 x 12 Valheim cells, which the Tetris
+        // view shows as 10 wide and 24 (or 12 x ContainerHeightFactor) tall.
+        private static void RegisterStash()
+        {
+            var piece = new CustomPiece(StashPrefab, StashBase, new PieceConfig
+            {
+                Name = "$tv_stash",
+                Description = "$tv_stash_desc",
+                PieceTable = PieceTables.Hammer,
+                Category = PieceCategories.Furniture,
+                CraftingStation = PrefabName,
+                Requirements = new[]
+                {
+                    new RequirementConfig("FineWood", 10, 0, true),
+                    new RequirementConfig("BronzeNails", 10, 0, true),
+                    new RequirementConfig("Bronze", 2, 0, true),
+                }
+            });
+            if (!piece.IsValid())
+            {
+                Plugin.Log.LogError($"Could not clone {StashBase} for the stash.");
+                return;
+            }
+
+            var container = piece.PiecePrefab.GetComponent<Container>();
+            if (container != null)
+            {
+                container.m_name = "$tv_stash";
+                container.m_width = 10;
+                container.m_height = 12;
+            }
+
             PieceManager.Instance.AddPiece(piece);
         }
 

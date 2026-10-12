@@ -37,6 +37,7 @@ namespace BepInEx.Configuration
     public class ConfigFile
     {
         public ConfigEntry<T> Bind<T>(string section, string key, T defaultValue, ConfigDescription configDescription = null) { throw null; }
+        public ConfigEntry<T> Bind<T>(string section, string key, T defaultValue, string description) { throw null; }
     }
 
     public abstract class ConfigEntryBase { }

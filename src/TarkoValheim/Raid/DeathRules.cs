@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using TarkoValheim.Content;
+using TarkoValheim.Stash;
 using UnityEngine;
 
 namespace TarkoValheim.Raid
@@ -154,11 +155,18 @@ namespace TarkoValheim.Raid
         private static readonly FieldInfo HeightField = AccessTools.Field(typeof(Inventory), "m_height");
 
         /// <summary>
-        /// The secure container is the last N cells of the bottom inventory
-        /// row, counted leftward from the bottom-right corner.
+        /// With the Tetris inventory: the secure container grid plus the
+        /// container item itself. Without it: the last N cells of the bottom
+        /// inventory row, counted leftward from the bottom-right corner.
         /// </summary>
         public static bool Contains(Inventory inventory, ItemDrop.ItemData item)
         {
+            if (Reconciler.Active)
+            {
+                return Loc.TryRead(item, out var loc)
+                    && (loc.Grid == Loadout.SecureGrid || loc.Grid == Loc.Slot(SlotId.Secure).Grid);
+            }
+
             int slots = Plugin.SecureSlots.Value;
             if (slots <= 0 || WidthField == null || HeightField == null)
             {
