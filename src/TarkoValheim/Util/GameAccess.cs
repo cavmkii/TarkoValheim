@@ -24,6 +24,7 @@ namespace TarkoValheim.Util
         private static readonly FieldInfo GuiCurrentContainer = Field(typeof(InventoryGui), "m_currentContainer");
         private static readonly FieldInfo GuiPlayer = Field(typeof(InventoryGui), "m_player");
         private static readonly FieldInfo GuiContainer = Field(typeof(InventoryGui), "m_container");
+        private static readonly FieldInfo GuiCrafting = Field(typeof(InventoryGui), "m_crafting");
 
         private static readonly FieldInfo HumanoidVisEquipment = Field(typeof(Humanoid), "m_visEquipment");
         private static readonly FieldInfo VisLeftHand = Field(typeof(VisEquipment), "m_leftHand");
@@ -136,6 +137,8 @@ namespace TarkoValheim.Util
         public static RectTransform PlayerPanel(InventoryGui gui) => Get<RectTransform>(GuiPlayer, gui, null);
 
         public static RectTransform ContainerPanel(InventoryGui gui) => Get<RectTransform>(GuiContainer, gui, null);
+
+        public static RectTransform CraftingPanel(InventoryGui gui) => Get<RectTransform>(GuiCrafting, gui, null);
 
         public static Transform LeftHand(Humanoid humanoid)
         {
