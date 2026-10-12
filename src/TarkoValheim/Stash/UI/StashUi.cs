@@ -196,7 +196,9 @@ namespace TarkoValheim.Stash.UI
             DontDestroyOnLoad(_canvasGo);
             _canvas = _canvasGo.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 30;
+            // Above Valheim's own GUI canvas. Its inventory screen has a
+            // full-screen click catcher; anything drawn under it gets no clicks.
+            _canvas.sortingOrder = 10000;
             var scaler = _canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
