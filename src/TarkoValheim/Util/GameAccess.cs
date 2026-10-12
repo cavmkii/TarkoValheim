@@ -17,7 +17,7 @@ namespace TarkoValheim.Util
     internal static class GameAccess
     {
         private static readonly FieldInfo InventoryHeight = Field(typeof(Inventory), "m_height");
-        private static readonly MethodInfo InventoryChanged = AccessTools.Method(typeof(Inventory), "Changed");
+        private static readonly MethodInfo InventoryChanged = FindChanged();
         private static readonly MethodInfo InventoryAddAt =
             AccessTools.Method(typeof(Inventory), "AddItem", new[] { typeof(ItemDrop.ItemData), typeof(Vector2i) });
 
@@ -120,7 +120,45 @@ namespace TarkoValheim.Util
 
         public static void SetHeight(Inventory inventory, int height) => Set(InventoryHeight, inventory, height);
 
-        public static void Changed(Inventory inventory) => Call(InventoryChanged, inventory);
+        public static void Changed(Inventory inventory)
+        {
+            if (InventoryChanged == null)
+            {
+                return;
+            }
+
+            // Fill any parameters with their declared defaults (or the type's
+            // default), in case the only overload takes arguments.
+            var parameters = InventoryChanged.GetParameters();
+            var args = new object[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var p = parameters[i];
+                args[i] = p.HasDefaultValue ? p.DefaultValue
+                    : p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null;
+            }
+            Call(InventoryChanged, inventory, args);
+        }
+
+        // Inventory has more than one method called Changed; prefer the one
+        // without parameters.
+        private static MethodInfo FindChanged()
+        {
+            MethodInfo best = null;
+            foreach (var method in AccessTools.GetDeclaredMethods(typeof(Inventory)))
+            {
+                if (method.Name == "Changed" && !method.IsStatic
+                    && (best == null || method.GetParameters().Length < best.GetParameters().Length))
+                {
+                    best = method;
+                }
+            }
+            if (best == null)
+            {
+                Plugin.Log?.LogWarning("Inventory.Changed not found.");
+            }
+            return best;
+        }
 
         public static bool AddItemAt(Inventory inventory, ItemDrop.ItemData item, Vector2i pos)
         {

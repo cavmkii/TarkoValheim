@@ -272,6 +272,65 @@ namespace TarkoValheim.Guns
             GameAccess.Changed(inventory);
         }
 
+        /// <summary>
+        /// Tarkov-style loading: drop a stack of rounds on a gun. Rounds go
+        /// straight into the magazine; a different round already loaded is
+        /// unloaded first. Returns false (with an error token) if it can't load.
+        /// </summary>
+        public static bool LoadFrom(Player player, Inventory from, ItemDrop.ItemData ammoStack, int amount,
+            ItemDrop.ItemData gunItem, out string error)
+        {
+            error = null;
+            var gun = Firearms.FindGun(Gear.PrefabName(gunItem));
+            var ammo = Firearms.FindAmmo(Gear.PrefabName(ammoStack));
+            if (gun == null || ammo == null)
+            {
+                return false;
+            }
+            if (ammo.Caliber != gun.Caliber)
+            {
+                error = "$tv_err_wrong_caliber";
+                return false;
+            }
+
+            if (LoadedAmmo(gunItem) != ammo.Id && Mag(gunItem) > 0)
+            {
+                Unload(player, gunItem);
+            }
+
+            int n = Mathf.Min(amount, ammoStack.m_stack, gun.MagSize - Mag(gunItem));
+            if (n <= 0)
+            {
+                error = "$tv_err_mag_full";
+                return false;
+            }
+
+            ammoStack.m_stack -= n;
+            if (ammoStack.m_stack <= 0)
+            {
+                from.RemoveItem(ammoStack);
+            }
+            SetLoadedAmmo(gunItem, ammo.Id);
+            SetMag(gunItem, Mag(gunItem) + n);
+            GameAccess.Changed(from);
+            return true;
+        }
+
+        /// <summary>True if the player carries rounds of this caliber anywhere,
+        /// reachable for reloading or not.</summary>
+        public static bool CarriesAny(Player player, string caliber)
+        {
+            foreach (var item in player.GetInventory().GetAllItems())
+            {
+                var ammo = Firearms.FindAmmo(Gear.PrefabName(item));
+                if (ammo != null && ammo.Caliber == caliber)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public static void Unload(Player player, ItemDrop.ItemData gun)
         {
             if (player == null)

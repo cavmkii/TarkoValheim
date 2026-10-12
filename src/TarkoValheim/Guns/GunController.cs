@@ -326,7 +326,7 @@ namespace TarkoValheim.Guns
             {
                 if (!full)
                 {
-                    Message("$tv_msg_no_ammo");
+                    Message(GunState.CarriesAny(player, gun.Caliber) ? "$tv_msg_ammo_unreachable" : "$tv_msg_no_ammo");
                 }
                 return;
             }
