@@ -55,28 +55,32 @@ sound like crossbows. Each one is single-shot with a reload after every shot,
 because that is how Valheim's crossbow attack works. Real gun models need a
 Unity AssetBundle, and that is the obvious next step.
 
-## Install (players)
+## Install with Vortex
 
-1. Install [BepInExPack_Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/)
-   and [Jotunn](https://thunderstore.io/c/valheim/p/ValheimModding/Jotunn/) (r2modman does both).
-2. Put `TarkoValheim.dll` in `BepInEx/plugins/TarkoValheim/`.
-3. Everyone on a server needs the mod (enforced by Jotunn's version check).
+1. In Vortex, manage Valheim. Vortex offers to install BepInEx; accept. If it
+   doesn't, install "BepInExPack for Valheim" from Nexus.
+2. Install "Jotunn, the Valheim Library" from Nexus.
+3. Drag `TarkoValheim-<version>.zip` onto Vortex's Mods page (or use
+   *Install From File*), enable it, and deploy.
+4. Everyone on a server needs the mod (enforced by Jotunn's version check).
    Server admins' config values are synced to clients.
 
 Config file: `BepInEx/config/cavmkii.tarkovalheim.cfg`.
 
 ## Build (developers)
 
-Requires the .NET SDK (6+), plus Valheim with BepInEx installed.
+Requires the .NET 8 SDK, plus Valheim with BepInEx installed (through Vortex
+is fine: it deploys BepInEx into the game folder).
 
 ```sh
 cp Environment.props.example Environment.props   # set VALHEIM_INSTALL
 dotnet build src/TarkoValheim/TarkoValheim.csproj
 ```
 
-Jotunn's build task generates publicized game assemblies on the first build.
-With `DeployToGame` set to true, the DLL is copied into `BepInEx/plugins` after
-each build.
+Each build writes `dist/TarkoValheim-<version>.zip`, ready for Vortex. Jotunn's
+build task generates publicized game assemblies on the first build. Set
+`DeployToGame` to true to also copy the DLL straight into `BepInEx/plugins`,
+bypassing Vortex.
 
 Without Valheim installed you can still type-check the code:
 
