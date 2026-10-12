@@ -399,6 +399,26 @@ namespace TarkoValheim.Util
             }
         }
 
+        private static readonly FieldInfo RequirementUpgrader = AccessTools.Field(typeof(Piece.Requirement), "m_upgraderResource");
+        private static readonly FieldInfo StationUpgrader = AccessTools.Field(typeof(CraftingStation), "m_upgrader");
+
+        /// <summary>
+        /// Valheim 1.0's rule for "upgrader resources" (the idols): they only
+        /// count at an upgrader station, where nothing else counts. At any
+        /// other station, or with none, they're ignored. Before 1.0 the
+        /// fields don't exist and every ingredient counts.
+        /// </summary>
+        public static bool RequirementApplies(Piece.Requirement req, CraftingStation station)
+        {
+            bool idol = RequirementUpgrader != null && RequirementUpgrader.GetValue(req) is bool b && b;
+            if (station == null)
+            {
+                return !idol;
+            }
+            bool upgrader = StationUpgrader != null && StationUpgrader.GetValue(station) is bool u && u;
+            return upgrader == idol;
+        }
+
         public static bool RequireOnlyOneIngredient(Recipe recipe) => Get(RecipeOnlyOne, recipe, false);
 
         public static GameObject FindHitObject(Collider collider)

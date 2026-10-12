@@ -143,11 +143,27 @@ namespace TarkoValheim.Crafting
             return n;
         }
 
+        /// <summary>The ingredients that count where the player is standing
+        /// (idols only at an upgrader station, see GameAccess.RequirementApplies).</summary>
+        public static List<Piece.Requirement> Requirements(Player player, Recipe recipe)
+        {
+            var station = player.GetCurrentCraftingStation();
+            var list = new List<Piece.Requirement>();
+            foreach (var req in recipe.m_resources ?? new Piece.Requirement[0])
+            {
+                if (req != null && GameAccess.RequirementApplies(req, station))
+                {
+                    list.Add(req);
+                }
+            }
+            return list;
+        }
+
         private static bool HaveResources(Player player, Recipe recipe, int quality)
         {
             bool onlyOne = GameAccess.RequireOnlyOneIngredient(recipe);
             bool any = false;
-            foreach (var req in recipe.m_resources ?? new Piece.Requirement[0])
+            foreach (var req in Requirements(player, recipe))
             {
                 int need = req.GetAmount(quality);
                 if (req.m_resItem == null || need <= 0)
@@ -249,7 +265,7 @@ namespace TarkoValheim.Crafting
             bool onlyOne = GameAccess.RequireOnlyOneIngredient(recipe);
             var sources = Sources(player);
             HideoutStash.Claim(HideoutStash.Containers(player, null));
-            foreach (var req in recipe.m_resources ?? new Piece.Requirement[0])
+            foreach (var req in Requirements(player, recipe))
             {
                 int need = req.GetAmount(quality);
                 if (req.m_resItem == null || need <= 0)

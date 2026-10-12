@@ -231,7 +231,7 @@ namespace TarkoValheim.Stash.UI
                 UiKit.TopLeft(note.rectTransform, rx, ry, rw, 20f);
                 ry += 22f;
             }
-            foreach (var req in entry.Recipe.m_resources ?? new Piece.Requirement[0])
+            foreach (var req in CraftService.Requirements(player, entry.Recipe))
             {
                 int need = req.GetAmount(entry.Quality);
                 if (req.m_resItem == null || need <= 0)

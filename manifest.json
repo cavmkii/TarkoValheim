@@ -1,6 +1,6 @@
 {
   "name": "TarkoValheim",
-  "version_number": "0.6.0",
+  "version_number": "0.6.1",
   "website_url": "https://github.com/cavmkii/tarkovalheim",
   "description": "Tarkov rules for vanilla Valheim: modular weapons, a hideout stash, raids that get deadlier the longer you stay, bleeds and fractures.",
   "dependencies": [
