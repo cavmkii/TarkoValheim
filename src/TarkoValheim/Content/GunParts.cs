@@ -35,8 +35,6 @@ namespace TarkoValheim.Content
         public float Spread;
         public float AdsSpread;
         public float Recoil;
-        public float Reload;
-        public float MagSize;
 
         // Sights only: replace the gun's sight picture and zoom.
         public SightType? Sight;
@@ -191,20 +189,6 @@ namespace TarkoValheim.Content
                 SizeW = 2, Sight = SightType.Scope, AdsFov = 8f, AdsSpread = -0.35f, Weight = 0.6f,
                 Fits = new[] { GunClass.Marksman },
                 Requirements = new[] { R("BlackMetal", 4), R("Crystal", 4) }
-            });
-
-            list.Add(new PartSpec
-            {
-                Id = "TV_Mag_Extended", Base = "IronScrap", Slot = PartSlot.Magazine, Label = "MAG",
-                SizeH = 2, MagSize = 0.5f, Reload = 0.15f, Weight = 0.3f,
-                Requirements = new[] { R("Iron", 4) }
-            });
-            list.Add(new PartSpec
-            {
-                Id = "TV_Mag_Drum", Base = "IronScrap", Slot = PartSlot.Magazine, Label = "DRUM",
-                SizeW = 2, SizeH = 2, MagSize = 1.5f, Reload = 0.45f, Recoil = 0.05f, Weight = 0.9f,
-                Fits = new[] { GunClass.Smg, GunClass.AssaultRifle },
-                Requirements = new[] { R("BlackMetal", 6) }
             });
 
             return list;

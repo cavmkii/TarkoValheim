@@ -26,6 +26,11 @@ namespace TarkoValheim.Stash
         public static ContainerLayout Build(Inventory inventory)
         {
             var cl = new ContainerLayout(inventory);
+            bool changed = false;
+            foreach (var item in inventory.GetAllItems())
+            {
+                changed |= Guns.GunMods.EnsureDefaultMag(item);
+            }
             foreach (var item in inventory.GetAllItems())
             {
                 var size = Loc.TryRead(item, out var loc) ? ItemSizes.Of(item, loc.Rot) : default(UnityEngine.Vector2Int);
@@ -39,7 +44,6 @@ namespace TarkoValheim.Stash
                 }
             }
 
-            bool changed = false;
             foreach (var item in cl.Unplaced.ToArray())
             {
                 if (cl.Grid.FindSpot(item, out int x, out int y, out bool rot))

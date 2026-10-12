@@ -1,7 +1,6 @@
 using BepInEx.Configuration;
 using BepInEx;
 using HarmonyLib;
-using Jotunn.Configs;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using TarkoValheim.Content;
@@ -20,7 +19,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.3.0";
+        public const string PluginVersion = "0.3.1";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -43,6 +42,10 @@ namespace TarkoValheim
         internal static ConfigEntry<bool> AdsToggle;
         internal static ConfigEntry<bool> Tracers;
         internal static ConfigEntry<bool> Crosshair;
+
+        internal static ConfigEntry<KeyCode> ReloadKey;
+        internal static ConfigEntry<KeyCode> FireModeKey;
+        internal static ConfigEntry<KeyCode> MagCheckKey;
 
         private Harmony _harmony;
 
@@ -78,24 +81,18 @@ namespace TarkoValheim
             Firearms.Register();
             Gear.Register();
             GunParts.Register();
+            Magazines.Register();
         }
 
+        // Read directly with ZInput.GetKeyDown. In testing, a Jotunn button
+        // on R didn't register; Valheim binds R to "Hide" (sheathe), which is
+        // the likely collision.
         private void BindKeys()
         {
-            AddKey(GunController.ReloadButton, "Reload", KeyCode.R, "$tv_key_reload");
-            AddKey(GunController.FireModeButton, "FireMode", KeyCode.B, "$tv_key_firemode");
-            AddKey(GunController.MagCheckButton, "CheckMagazine", KeyCode.T, "$tv_key_magcheck");
-        }
-
-        private void AddKey(string name, string configKey, KeyCode key, string hint)
-        {
-            InputManager.Instance.AddButton(PluginGuid, new ButtonConfig
-            {
-                Name = name,
-                Config = Config.Bind("Keys", configKey, key),
-                HintToken = hint,
-                ActiveInGUI = false
-            });
+            ReloadKey = Config.Bind("Keys", "Reload", KeyCode.R,
+                "Reload / clear a malfunction. Swaps in your fullest magazine from pockets, rig or secure container.");
+            FireModeKey = Config.Bind("Keys", "FireMode", KeyCode.B, "Cycle fire mode.");
+            MagCheckKey = Config.Bind("Keys", "CheckMagazine", KeyCode.T, "Check how full the magazine is.");
         }
 
         private void BindConfig()
