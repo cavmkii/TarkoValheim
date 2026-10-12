@@ -4,7 +4,8 @@ using HarmonyLib;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using TarkoValheim.Content;
-using TarkoValheim.Guns;
+using TarkoValheim.Health;
+using TarkoValheim.Modding;
 using TarkoValheim.Raid;
 using TarkoValheim.Stash.UI;
 using TarkoValheim.Stash;
@@ -19,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.4.1";
+        public const string PluginVersion = "0.5.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -28,24 +29,17 @@ namespace TarkoValheim
         internal static ConfigEntry<int> SecureSlots;
         internal static ConfigEntry<bool> WipeSkillsOnRaidDeath;
         internal static ConfigEntry<float> HideoutRadius;
-        internal static ConfigEntry<bool> EnemyAmmoDrops;
+        internal static ConfigEntry<bool> RaidHostility;
+        internal static ConfigEntry<bool> HuntingParties;
+        internal static ConfigEntry<float> CalmMinutes;
+        internal static ConfigEntry<float> ThreatStepMinutes;
+        internal static ConfigEntry<bool> PortalsOnlyInHideouts;
+        internal static ConfigEntry<bool> HealthConditions;
 
         internal static ConfigEntry<bool> TetrisInventory;
         internal static ConfigEntry<int> CellSize;
         internal static ConfigEntry<int> ContainerHeightFactor;
         internal static ConfigEntry<string> SizeOverrides;
-
-        internal static ConfigEntry<float> GunDamage;
-        internal static ConfigEntry<float> RecoilMultiplier;
-        internal static ConfigEntry<bool> ReloadFromBackpack;
-        internal static ConfigEntry<AmmoDisplayMode> AmmoDisplay;
-        internal static ConfigEntry<bool> AdsToggle;
-        internal static ConfigEntry<bool> Tracers;
-        internal static ConfigEntry<bool> Crosshair;
-
-        internal static ConfigEntry<KeyCode> ReloadKey;
-        internal static ConfigEntry<KeyCode> FireModeKey;
-        internal static ConfigEntry<KeyCode> MagCheckKey;
 
         private Harmony _harmony;
 
@@ -55,44 +49,48 @@ namespace TarkoValheim
             Log = Logger;
 
             BindConfig();
-            BindKeys();
-            GunSkills.Register();
 
             Translations.Register();
             PrefabManager.OnVanillaPrefabsAvailable += RegisterContent;
-            PrefabManager.OnPrefabsRegistered += LootDrops.Apply;
 
             _harmony = new Harmony(PluginGuid);
-            DeathRules.Patch(_harmony);
-            InventoryHooks.Patch(_harmony);
-            GunPatches.Patch(_harmony);
+            Guarded("DeathRules", () => DeathRules.Patch(_harmony));
+            Guarded("InventoryHooks", () => InventoryHooks.Patch(_harmony));
+            Guarded("HideoutStash", () => HideoutStash.Patch(_harmony));
+            Guarded("WeaponPatches", () => WeaponPatches.Patch(_harmony));
+            Guarded("Hostility", () => Hostility.Patch(_harmony));
+            Guarded("PortalRules", () => PortalRules.Patch(_harmony));
+            Guarded("Conditions", () => Conditions.Patch(_harmony));
+            Guarded("Meds", () => Meds.Patch(_harmony));
 
             gameObject.AddComponent<RaidTracker>();
+            gameObject.AddComponent<Hostility>();
+            gameObject.AddComponent<Conditions>();
+            gameObject.AddComponent<StatusHud>();
             gameObject.AddComponent<StashUi>();
-            gameObject.AddComponent<GunController>();
-            gameObject.AddComponent<Ballistics>();
-            gameObject.AddComponent<GunHud>();
+        }
+
+        // One system failing to hook (a game update renamed something) must
+        // not take the rest down with it.
+        private static void Guarded(string what, System.Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (System.Exception e)
+            {
+                Log.LogError($"{what} could not be set up: {e}");
+            }
         }
 
         private void RegisterContent()
         {
             PrefabManager.OnVanillaPrefabsAvailable -= RegisterContent;
             Hideout.Register();
-            Firearms.Register();
             Gear.Register();
-            GunParts.Register();
-            Magazines.Register();
-        }
-
-        // Read directly with ZInput.GetKeyDown. In testing, a Jotunn button
-        // on R didn't register; Valheim binds R to "Hide" (sheathe), which is
-        // the likely collision.
-        private void BindKeys()
-        {
-            ReloadKey = Config.Bind("Keys", "Reload", KeyCode.R,
-                "Reload / clear a malfunction. Swaps in your fullest magazine from pockets, rig or secure container.");
-            FireModeKey = Config.Bind("Keys", "FireMode", KeyCode.B, "Cycle fire mode.");
-            MagCheckKey = Config.Bind("Keys", "CheckMagazine", KeyCode.T, "Check how full the magazine is.");
+            WeaponParts.Register();
+            Meds.Register();
         }
 
         private void BindConfig()
@@ -121,10 +119,31 @@ namespace TarkoValheim
                     "Distance in metres from a Hideout workbench that counts as being out of raid.",
                     new AcceptableValueRange<float>(5f, 100f), admin));
 
-            EnemyAmmoDrops = Config.Bind("Loot", "EnemyAmmoDrops", true,
+            RaidHostility = Config.Bind("Raid", "Hostility", true,
                 new ConfigDescription(
-                    "If true, some enemies drop ammunition. Applied when a world loads; turning it off needs a game restart to take effect.",
+                    "If true, the longer you stay out of a hideout, the more dangerous it gets: monsters spawning near you " +
+                    "are more likely to have stars, and (with HuntingParties) groups come looking for you.",
                     null, admin));
+
+            HuntingParties = Config.Bind("Raid", "HuntingParties", true,
+                new ConfigDescription("If true, raid threat sends groups of the local biome's monsters after you.", null, admin));
+
+            CalmMinutes = Config.Bind("Raid", "CalmMinutes", 5f,
+                new ConfigDescription("Minutes at the start of a raid with no extra threat.",
+                    new AcceptableValueRange<float>(0f, 60f), admin));
+
+            ThreatStepMinutes = Config.Bind("Raid", "ThreatStepMinutes", 5f,
+                new ConfigDescription("Minutes between each rise in threat level after the calm period (4 levels).",
+                    new AcceptableValueRange<float>(1f, 60f), admin));
+
+            PortalsOnlyInHideouts = Config.Bind("Raid", "PortalsOnlyInHideouts", true,
+                new ConfigDescription(
+                    "If true, portals can only be built, and only work, inside a hideout's radius. " +
+                    "Build a forward hideout (FOB) to portal out to it.",
+                    null, admin));
+
+            HealthConditions = Config.Bind("Health", "BleedsAndFractures", true,
+                new ConfigDescription("If true, hits can cause bleeds and fractures that need treating.", null, admin));
 
             TetrisInventory = Config.Bind("Inventory", "TetrisInventory", true,
                 "Tarkov-style inventory (multi-cell items, rig, backpack, secure container). " +
@@ -143,30 +162,6 @@ namespace TarkoValheim
                 new ConfigDescription(
                     "Item sizes by prefab name, overriding the defaults. Example: SwordIron=1x4, Wood=1x1",
                     null, admin));
-
-            GunDamage = Config.Bind("Guns", "DamageMultiplier", 1f,
-                new ConfigDescription("Multiplies every bullet's damage.",
-                    new AcceptableValueRange<float>(0.1f, 5f), admin));
-
-            RecoilMultiplier = Config.Bind("Guns", "RecoilMultiplier", 1f,
-                new ConfigDescription("Multiplies how far each shot kicks the view.",
-                    new AcceptableValueRange<float>(0f, 3f), admin));
-
-            ReloadFromBackpack = Config.Bind("Guns", "ReloadFromBackpack", false,
-                new ConfigDescription(
-                    "If false (Tarkov rules), reloading only uses ammo in pockets, rig and secure container.",
-                    null, admin));
-
-            AmmoDisplay = Config.Bind("Guns", "AmmoDisplay", AmmoDisplayMode.Exact,
-                "Exact: always show rounds left. Tarkov: show only a rough estimate after checking the magazine (T).");
-
-            AdsToggle = Config.Bind("Guns", "AimToggle", false,
-                "If true, right mouse toggles aiming instead of holding it.");
-
-            Tracers = Config.Bind("Guns", "Tracers", true, "Draw bullet tracers.");
-
-            Crosshair = Config.Bind("Guns", "Crosshair", true,
-                "Show a crosshair that grows with the cone of fire. Tarkov has none; turn it off for that.");
         }
     }
 

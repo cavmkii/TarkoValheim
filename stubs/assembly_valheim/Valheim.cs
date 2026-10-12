@@ -30,6 +30,8 @@ public class Character : MonoBehaviour, IDestructible
     public virtual float GetMaxStamina() { throw null; }
     public float GetEitr() { throw null; }
     public virtual float GetMaxEitr() { throw null; }
+    public void SetLevel(int level) { }
+    public void Heal(float hp, bool showText = true) { }
     public void Damage(HitData hit) { }
     protected virtual void OnDeath() { }
 }
@@ -199,6 +201,9 @@ public class ItemDrop : MonoBehaviour
             public int m_maxStackSize;
             public int m_maxQuality;
             public float m_armor;
+            public Skills.SkillType m_skillType;
+            public Sprite[] m_icons;
+            public StatusEffect m_consumeStatusEffect;
             public float m_armorPerLevel;
             public float m_food;
             public float m_foodStamina;
@@ -298,6 +303,8 @@ public class CraftingStation : MonoBehaviour
 public class ZNetView : MonoBehaviour
 {
     public bool IsValid() { throw null; }
+    public bool IsOwner() { throw null; }
+    public void ClaimOwnership() { }
 }
 
 public class CharacterDrop : MonoBehaviour
@@ -319,4 +326,37 @@ public class Localization
 {
     public static Localization instance { get { throw null; } }
     public string Localize(string text) { throw null; }
+}
+
+public class StatusEffect : ScriptableObject { }
+
+public class BaseAI : MonoBehaviour { }
+
+public class TombStone : MonoBehaviour { }
+
+public class TeleportWorld : MonoBehaviour { }
+
+public struct ZDOID
+{
+    public bool IsNone() { throw null; }
+}
+
+public class ZNetScene : MonoBehaviour
+{
+    public static ZNetScene instance { get { throw null; } }
+    public GameObject GetPrefab(string name) { throw null; }
+}
+
+// Reached only through reflection (GameAccess.BiomeAt): whether "instance"
+// is a field or a property, and GetBiome's exact overloads, aren't confirmed.
+public class WorldGenerator { }
+
+public class Heightmap : MonoBehaviour
+{
+    // Real values: enum constants are compiled into the mod.
+    public enum Biome
+    {
+        None = 0, Meadows = 1, Swamp = 2, Mountain = 4, BlackForest = 8, Plains = 16,
+        AshLands = 32, DeepNorth = 64, Ocean = 256, Mistlands = 512
+    }
 }

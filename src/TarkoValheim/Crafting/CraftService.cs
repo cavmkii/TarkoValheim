@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TarkoValheim.Modding;
 using TarkoValheim.Stash;
 using TarkoValheim.Util;
 using UnityEngine;
@@ -25,6 +26,11 @@ namespace TarkoValheim.Crafting
     /// which is hidden under the Tarkov screen. Recipes, station levels and
     /// costs are Valheim's own; only the screen is new. Crafting is instant
     /// (no progress bar).
+    ///
+    /// In a hideout, materials in the stash (every chest in its radius)
+    /// count and are used, like Tarkov's hideout crafting. Weapons and
+    /// shields don't level up here: they get better through their parts,
+    /// and the parts level up instead.
     /// </summary>
     internal static class CraftService
     {
@@ -48,7 +54,7 @@ namespace TarkoValheim.Crafting
                 list.Add(Make(player, recipe, null, 1, level));
 
                 var shared = recipe.m_item.m_itemData.m_shared;
-                if (shared.m_maxQuality <= 1)
+                if (shared.m_maxQuality <= 1 || WeaponMods.IsModular(recipe.m_item.m_itemData))
                 {
                     continue;
                 }
@@ -99,19 +105,38 @@ namespace TarkoValheim.Crafting
             return entry;
         }
 
+        /// <summary>Where materials come from: the player, then the stash if in a hideout.</summary>
+        public static List<Inventory> Sources(Player player)
+        {
+            // Rebuilt at most once a frame: the recipe list asks for every ingredient.
+            if (_sources == null || _sourcesFrame != Time.frameCount)
+            {
+                _sources = new List<Inventory> { player.GetInventory() };
+                _sources.AddRange(HideoutStash.Inventories(player, null));
+                _sourcesFrame = Time.frameCount;
+            }
+            return _sources;
+        }
+
+        private static List<Inventory> _sources;
+        private static int _sourcesFrame = -1;
+
         public static int Count(Player player, ItemDrop resource)
         {
-            if (resource == null)
-            {
-                return 0;
-            }
-            string name = resource.m_itemData.m_shared.m_name;
+            return resource == null ? 0 : Count(Sources(player), resource.m_itemData.m_shared.m_name);
+        }
+
+        private static int Count(List<Inventory> sources, string name)
+        {
             int n = 0;
-            foreach (var item in player.GetInventory().GetAllItems())
+            foreach (var inventory in sources)
             {
-                if (item.m_shared.m_name == name)
+                foreach (var item in inventory.GetAllItems())
                 {
-                    n += item.m_stack;
+                    if (item.m_shared.m_name == name && !Loc.IsLocked(item))
+                    {
+                        n += item.m_stack;
+                    }
                 }
             }
             return n;
@@ -210,7 +235,8 @@ namespace TarkoValheim.Crafting
         private static void Consume(Player player, Recipe recipe, int quality, ItemDrop.ItemData keep)
         {
             bool onlyOne = GameAccess.RequireOnlyOneIngredient(recipe);
-            var inventory = player.GetInventory();
+            var sources = Sources(player);
+            HideoutStash.Claim(HideoutStash.Containers(player, null));
             foreach (var req in recipe.m_resources ?? new Piece.Requirement[0])
             {
                 int need = req.GetAmount(quality);
@@ -224,22 +250,30 @@ namespace TarkoValheim.Crafting
                 }
 
                 string name = req.m_resItem.m_itemData.m_shared.m_name;
-                var matches = inventory.GetAllItems().FindAll(i => i.m_shared.m_name == name && i != keep);
-                // Unequipped and lowest quality go first.
-                matches.Sort((a, b) => a.m_equipped != b.m_equipped ? (a.m_equipped ? 1 : -1) : a.m_quality.CompareTo(b.m_quality));
-                foreach (var item in matches)
+                // What the player carries goes first, then the stash.
+                foreach (var inventory in sources)
                 {
-                    if (need <= 0)
+                    var matches = inventory.GetAllItems().FindAll(i => i.m_shared.m_name == name && i != keep && !Loc.IsLocked(i));
+                    // Unequipped and lowest quality go first.
+                    matches.Sort((a, b) => a.m_equipped != b.m_equipped ? (a.m_equipped ? 1 : -1) : a.m_quality.CompareTo(b.m_quality));
+                    foreach (var item in matches)
                     {
-                        break;
+                        if (need <= 0)
+                        {
+                            break;
+                        }
+                        int n = Mathf.Min(need, item.m_stack);
+                        if (item.m_equipped && n >= item.m_stack)
+                        {
+                            player.UnequipItem(item, false);
+                        }
+                        inventory.RemoveItem(item, n);
+                        need -= n;
                     }
-                    int n = Mathf.Min(need, item.m_stack);
-                    if (item.m_equipped && n >= item.m_stack)
+                    if (inventory != player.GetInventory())
                     {
-                        player.UnequipItem(item, false);
+                        GameAccess.Changed(inventory);
                     }
-                    inventory.RemoveItem(item, n);
-                    need -= n;
                 }
                 if (onlyOne)
                 {

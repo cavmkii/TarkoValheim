@@ -53,10 +53,6 @@ namespace TarkoValheim.Stash
             try
             {
                 GiveStarterKit(player);
-                foreach (var item in player.GetInventory().GetAllItems())
-                {
-                    Guns.GunMods.EnsureDefaultMag(item);
-                }
 
                 var lo = Loadout.Build(player);
                 foreach (var item in lo.Unplaced.ToArray())
