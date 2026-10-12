@@ -58,6 +58,9 @@ namespace TarkoValheim.Stash.UI
 
         private Tab _tab = Tab.Gear;
         private int _builtVersion = -1;
+        private int _builtPlayerSig;
+        private float _nextInfoRefresh;
+        private Text _statusText;
         private int _builtContainerSig;
         private Container _builtContainer;
         private CraftingStation _builtStation;
@@ -140,14 +143,30 @@ namespace TarkoValheim.Stash.UI
                     {
                         _dirty = true;
                     }
-                    // Health, food and skill numbers move on their own.
-                    if (_tab == Tab.Health || _tab == Tab.Skills)
+                    if (_statusText != null)
                     {
-                        _dirty = true;
+                        _statusText.text = StatusLine(player);
                     }
                 }
 
-                if (_dirty || _builtVersion != Reconciler.Version || container != _builtContainer || station != _builtStation)
+                // Health, food and skill numbers move on their own.
+                if ((_tab == Tab.Health || _tab == Tab.Skills) && Time.time >= _nextInfoRefresh)
+                {
+                    _dirty = true;
+                }
+
+                // The reconciler bumps its version on every pass, changed or
+                // not; only rebuild when what's drawn would actually differ.
+                // Rebuilding resets hover states and tooltips.
+                if (!_dirty && _builtVersion != Reconciler.Version)
+                {
+                    _builtVersion = Reconciler.Version;
+            _builtPlayerSig = PlayerSignature(player);
+            _nextInfoRefresh = Time.time + 1f;
+                    _dirty = PlayerSignature(player) != _builtPlayerSig;
+                }
+
+                if (_dirty || container != _builtContainer || station != _builtStation)
                 {
                     Rebuild(player, container, station);
                 }
@@ -161,6 +180,33 @@ namespace TarkoValheim.Stash.UI
         private static Container CurrentContainer()
         {
             return InventoryGui.instance != null ? GameAccess.CurrentContainer(InventoryGui.instance) : null;
+        }
+
+        // Everything about the player's items that the screen draws.
+        private static int PlayerSignature(Player player)
+        {
+            unchecked
+            {
+                var items = player.GetInventory().GetAllItems();
+                int sig = items.Count;
+                foreach (var item in items)
+                {
+                    sig = sig * 31 + (item.m_shared.m_name ?? "").GetHashCode();
+                    sig = sig * 31 + item.m_stack;
+                    sig = sig * 31 + item.m_quality;
+                    sig = sig * 31 + (item.m_equipped ? 1 : 0);
+                    sig = sig * 31 + Mathf.FloorToInt(item.m_durability);
+                    if (item.m_customData != null)
+                    {
+                        foreach (var kv in item.m_customData)
+                        {
+                            sig += kv.Key.GetHashCode() ^ (kv.Value ?? "").GetHashCode();
+                        }
+                    }
+                }
+                sig = sig * 31 + Mathf.FloorToInt(player.GetHealth());
+                return sig;
+            }
         }
 
         private static int ContainerSignature(Container container)
@@ -345,7 +391,13 @@ namespace TarkoValheim.Stash.UI
                 x += tabW + 4f;
             }
 
-            // Right: who and where.
+            // Right: who and where. Refreshed in place, without a rebuild.
+            _statusText = UiKit.Text(_frame, "Who", StatusLine(player), 14, UiKit.Label, TextAnchor.MiddleRight);
+            UiKit.TopLeft(_statusText.rectTransform, FrameW - 420f, 6f, 400f, 48f);
+        }
+
+        private static string StatusLine(Player player)
+        {
             string status;
             var raid = RaidTracker.InRaid;
             if (raid == true)
@@ -361,8 +413,7 @@ namespace TarkoValheim.Stash.UI
             {
                 status = "";
             }
-            var who = UiKit.Text(_frame, "Who", $"{player.GetPlayerName()}\n{status}", 14, UiKit.Label, TextAnchor.MiddleRight);
-            UiKit.TopLeft(who.rectTransform, FrameW - 420f, 6f, 400f, 48f);
+            return $"{player.GetPlayerName()}\n{status}";
         }
 
         /// <summary>A vertical scroll view; scroll position survives rebuilds.</summary>

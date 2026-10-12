@@ -49,6 +49,7 @@ namespace UnityEngine.UI
         public Color selectedColor { get; set; }
         public Color disabledColor { get; set; }
         public float colorMultiplier { get; set; }
+        public float fadeDuration { get; set; }
     }
 
     public class Selectable : MonoBehaviour

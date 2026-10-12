@@ -10,7 +10,9 @@ namespace TarkoValheim.Stash.UI
     {
         // Tarkov palette: near-black screen, charcoal panels, grey text, one
         // light-orange accent for everything you can press.
-        public static readonly Color ScreenBg = new Color(0.035f, 0.04f, 0.04f, 0.97f);
+        // Fully opaque: Valheim renders UI in linear colour space, where even
+        // 3% transparency lets its own HUD and crafting panel show through.
+        public static readonly Color ScreenBg = new Color(0.035f, 0.04f, 0.04f, 1f);
         public static readonly Color PanelBg = new Color(0.07f, 0.075f, 0.075f, 0.96f);
         public static readonly Color HeaderBg = new Color(0.15f, 0.155f, 0.15f, 0.95f);
         public static readonly Color Accent = new Color(0.89f, 0.61f, 0.23f, 1f);
@@ -134,6 +136,9 @@ namespace TarkoValheim.Stash.UI
             colors.pressedColor = primary ? new Color(0.6f, 0.4f, 0.14f, 1f) : new Color(0.6f, 0.4f, 0.14f, 1f);
             colors.disabledColor = new Color(0.1f, 0.1f, 0.1f, 1f);
             colors.colorMultiplier = 1f;
+            // No fade: a fresh button would otherwise fade in from white,
+            // which flashes every time the screen is rebuilt.
+            colors.fadeDuration = 0f;
             button.colors = colors;
             button.onClick.AddListener(() => onClick());
 

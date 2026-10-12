@@ -110,6 +110,9 @@ namespace TarkoValheim.Stash.UI
             colors.selectedColor = colors.normalColor;
             colors.pressedColor = new Color(0.5f, 0.34f, 0.12f, 1f);
             colors.colorMultiplier = 1f;
+            // No fade: a fresh button would otherwise fade in from white,
+            // which flashes every time the screen is rebuilt.
+            colors.fadeDuration = 0f;
             button.colors = colors;
             button.onClick.AddListener(() =>
             {
