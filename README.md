@@ -47,7 +47,8 @@ Firing no longer uses Valheim's crossbow attack:
 
 - **Bullets** travel at real speed with gravity drop. Hits go through
   Valheim's normal damage path.
-- **Magazines.** Rounds are tracked per gun and saved with it. **R** reloads,
+- **Magazines.** Rounds are tracked per gun and saved with it. In the
+  inventory, **drag rounds onto a gun** to load it, as in Tarkov. **R** reloads,
   using only ammo in your pockets, rig or secure container (Tarkov rules,
   configurable). The MP-133 and Mosin load one round at a time, and firing
   interrupts the reload. Pressing R with a full magazine switches ammo type.

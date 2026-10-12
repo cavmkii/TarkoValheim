@@ -745,7 +745,14 @@ namespace TarkoValheim.Stash.UI
             _ghost.SetAsLastSibling();
 
             var target = FindTarget(e.position, out var dest);
-            if (target == null)
+            var gunUnder = AmmoOntoGun(_dragView.Item, target, e.position);
+            if (gunUnder != null)
+            {
+                var gun = Firearms.FindGun(Gear.PrefabName(gunUnder));
+                var ammo = Firearms.FindAmmo(Gear.PrefabName(_dragView.Item));
+                _ghostTint.color = gun.Caliber == ammo.Caliber ? UiKit.Good : UiKit.Bad;
+            }
+            else if (target == null)
             {
                 _ghostTint.color = new Color(0.5f, 0.5f, 0.5f, 0.35f);
             }
@@ -771,9 +778,22 @@ namespace TarkoValheim.Stash.UI
             int amount = _dragAmount;
             var target = FindTarget(e.position, out var dest);
             bool overPanels = Contains(_main, e.position) || Contains(_containerPanel, e.position);
+            var gunUnder = AmmoOntoGun(item, target, e.position);
             CancelDrag();
 
-            if (target != null && target.Quick >= 0)
+            if (gunUnder != null)
+            {
+                if (GunState.LoadFrom(Player.m_localPlayer, from, item, amount, gunUnder, out var error))
+                {
+                    GameAccess.Changed(target.Inventory);
+                }
+                else if (error != null)
+                {
+                    StashOps.LastError = error;
+                    ReportError();
+                }
+            }
+            else if (target != null && target.Quick >= 0)
             {
                 if (StashOps.IsPlayerInventory(from))
                 {
@@ -812,6 +832,32 @@ namespace TarkoValheim.Stash.UI
             }
             _ghost = null;
             _dragView = null;
+        }
+
+        /// <summary>The gun under the pointer when a stack of rounds is dropped
+        /// on it (Tarkov-style loading), or null.</summary>
+        private ItemDrop.ItemData AmmoOntoGun(ItemDrop.ItemData dragged, DropTarget target, Vector2 screen)
+        {
+            if (target == null || target.Quick >= 0 || Firearms.FindAmmo(Gear.PrefabName(dragged)) == null)
+            {
+                return null;
+            }
+
+            ItemDrop.ItemData under = null;
+            if (target.IsSlot)
+            {
+                if (StashOps.IsPlayerInventory(target.Inventory) && Reconciler.Current != null)
+                {
+                    Reconciler.Current.Slots.TryGetValue(target.Slot, out under);
+                }
+            }
+            else if (target.Model != null)
+            {
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(target.Rect, screen, null, out var lp);
+                under = target.Model.At(Mathf.FloorToInt(lp.x / target.Cell), Mathf.FloorToInt(-lp.y / target.Cell));
+            }
+
+            return under != null && under != dragged && Firearms.FindGun(Gear.PrefabName(under)) != null ? under : null;
         }
 
         private DropTarget FindTarget(Vector2 screen, out Dest dest)

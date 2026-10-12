@@ -118,7 +118,10 @@ namespace TarkoValheim
                 { "tv_msg_jammed", "Malfunction! Press R to clear" },
                 { "tv_msg_clearing", "Clearing malfunction..." },
                 { "tv_msg_broken", "Weapon is broken. Repair it at the Hideout." },
-                { "tv_msg_no_ammo", "No ammo in pockets, rig or secure container" },
+                { "tv_msg_no_ammo", "No ammo for this gun" },
+                { "tv_msg_ammo_unreachable", "Ammo must be in your pockets, rig or secure container to reload (or drag it onto the gun)" },
+                { "tv_err_wrong_caliber", "Wrong caliber for this gun." },
+                { "tv_err_mag_full", "Magazine is full." },
                 { "tv_msg_reloading", "Reloading" },
 
                 { "tv_mag_empty", "Empty" },
