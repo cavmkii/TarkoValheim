@@ -214,7 +214,7 @@ NuGet. CI runs this on every push.
 
 ## How much of this is verified
 
-**One tester has run builds up to 0.3.1 in game. This version (0.4.0) hasn't
+**One tester has run builds up to 0.4.0 in game. This version (0.4.1) hasn't
 been run yet.** The code compiles against Jotunn 2.30.2's real API and
 against hand-written stand-ins for the game.
 
