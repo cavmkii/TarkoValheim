@@ -7,11 +7,58 @@ interchangeable.
 
 A BepInEx plugin built on [Jötunn](https://github.com/Valheim-Modding/Jotunn).
 
-## What's in 0.3.0
+## What's in 0.4.0
 
-### Tarkov inventory
+### One Tarkov screen for everything
 
-Valheim's inventory screen is replaced by a Tarkov-style one:
+Tab (and E on any crafting station) opens a full-screen Tarkov-style screen
+that replaces all of Valheim's inventory screen. It has **BACK** at the top
+left, then **GEAR | CRAFTING | SKILLS | HEALTH** tabs. Anything you can
+press has a light-orange outline. The screen is laid out on a 1920x1080
+frame and scaled to fit.
+
+- **GEAR**: Tarkov's layout.
+  - Left: equipment slots (HEADWEAR, BODY ARMOR, LEGS, CAPE, BELT, ARMBAND,
+    ON SLING, ON BACK, HOLSTER, SCABBARD), with health, stamina, weight and
+    armor underneath.
+  - Middle: TACTICAL RIG, POCKETS, BACKPACK and POUCH. Each one shows its
+    item box beside its grid and a used/total cell count.
+  - Right: the open chest or stash, with a category filter (ALL, WEAPONS,
+    AMMO, MODS, GEAR, ARMOR, FOOD, OTHER). The filter dims everything else.
+    When you modify a weapon, its panel opens here instead.
+  - Bottom: QUICK USE bar 1-8, and a *drop here to discard* box.
+- **CRAFTING**: replaces Valheim's crafting panel at every station, and does
+  hand crafting with no station. The left list puts what you can make now
+  first, then what needs a higher station level, then what you're missing
+  items for. Upgrades of items you carry are in the same list. The right
+  side shows the recipe: the item as it will come out, the station and level
+  it needs, and every ingredient as have / need. **REPAIR ALL** repairs
+  everything this station can fix.
+- **SKILLS**: every skill as a card with its level and progress bar. Gun
+  skills also say what the level buys (less recoil, faster reload, tighter
+  aimed spread).
+- **HEALTH**: health, stamina, eitr, weight, armor, the active foods with
+  time left, status effects, and whether you're in raid and which death rule
+  applies.
+
+QoL from Tarkov players' wish lists:
+
+- Caliber on ammo, magazine and gun icons.
+- Rounds/capacity on magazines.
+- Used/total cells on worn rigs and packs.
+- Armor value on armor.
+- **Middle-click to lock** an item. A locked item can't be dragged,
+  transferred or discarded.
+- **Drop an item on another of the same size** to swap them.
+- **Rotate** in the right-click menu.
+- Shortcuts listed in every tooltip and along the bottom bar.
+
+Crafting through this screen is instant: there's no progress bar. Recipes,
+station levels and costs are Valheim's own.
+
+### Tarkov inventory (from 0.3.0)
+
+Valheim's inventory grid is replaced by Tetris grids:
 
 - **Multi-cell items.** A rifle is 5x1, an AK 4x2, a helmet 2x2, body armor
   3x3, materials 1x1. Press **R while dragging** to rotate.
@@ -33,9 +80,9 @@ vest and Sling bag.
 
 Controls: **drag** to move, **R** while dragging to rotate, **Shift+drag** to
 split a stack, **Ctrl+click** to send an item to or from the open chest,
-**double-click** to use or equip, **right-click** for a menu (use, unload,
-quick slot, drop), and drag off the panels to drop on the ground. Drag the
-header to move the panel.
+**double-click** to use or equip, **middle-click** to lock, **right-click**
+for a menu (use, modify, unload, rotate, quick slot, lock, discard). Drop on
+the *drop here to discard* box to drop an item on the ground.
 
 Existing characters: items that don't fit the new grids show up under
 **UNSORTED** at the bottom. They are still carried and still count for
@@ -167,7 +214,7 @@ NuGet. CI runs this on every push.
 
 ## How much of this is verified
 
-**One tester has run builds up to 0.3.0 in game. This version (0.3.1) hasn't
+**One tester has run builds up to 0.3.1 in game. This version (0.4.0) hasn't
 been run yet.** The code compiles against Jotunn 2.30.2's real API and
 against hand-written stand-ins for the game.
 
@@ -182,9 +229,18 @@ found anywhere and are guarded:
 - `HitData.m_hitCollider` (which piece of a rock a bullet hit). Set only if it exists.
 - The `Sprites/Default` shader (tracers). Tracers turn off if it's missing.
 
-Things that can only be judged in game: how the panel fits next to Valheim's
-crafting panel at your resolution, whether the first-person camera position
-looks right, and balance.
+New in 0.4.0 and only read through reflection, with fallbacks if missing:
+`CraftingStation.GetLevel` (falls back to level 1), `InventoryGui.Hide`
+(BACK button), `InventoryGui.CanRepair` (falls back to its own station-and-level
+check), `Player.GetFoods`, `Player.GetBodyArmor`, `Skill.GetLevelPercentage`,
+the status effect list, and `Recipe.m_requireOnlyOneIngredient`.
+
+Things that can only be judged in game: whether the first-person camera
+position looks right, and balance.
+
+Not reachable from the new screen yet: Valheim's trophies, compendium and
+the vanilla crafting progress animation. Set `TetrisInventory = false` to
+get them back.
 
 ## Known conflicts
 
@@ -220,7 +276,8 @@ src/TarkoValheim/
   Content/LootDrops.cs   enemy ammo drops
   Guns/                  firing, reload, recoil, ADS camera, bullets, HUD
   Stash/                 Tetris inventory: layout, moves, Valheim hooks
-  Stash/UI/              inventory screen
+  Stash/UI/              the Tarkov screen: GEAR, CRAFTING, SKILLS, HEALTH tabs
+  Crafting/              crafting, upgrading and repairing without Valheim's panel
   Raid/                  death rules, raid start / extract messages
 stubs/                   compile-check stand-ins for the game, BepInEx, uGUI
 ```

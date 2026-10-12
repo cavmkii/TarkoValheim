@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System;
 using TarkoValheim.Content;
 using TarkoValheim.Guns;
+using TarkoValheim.Raid;
 using TarkoValheim.Util;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -9,19 +10,35 @@ using UnityEngine;
 
 namespace TarkoValheim.Stash.UI
 {
+    internal enum Tab
+    {
+        Gear,
+        Crafting,
+        Skills,
+        Health
+    }
+
     /// <summary>
-    /// The Tarkov-style inventory screen. Shown whenever Valheim's inventory
-    /// is open; Valheim's own player and container grids are shrunk to zero
-    /// while it is up, and its crafting panel is left alone.
+    /// The Tarkov-style screen that replaces Valheim's whole inventory screen:
+    /// GEAR (equipment, rig, pockets, backpack, pouch, and the open container),
+    /// CRAFTING, SKILLS and HEALTH, under one top bar. Shown whenever Valheim's
+    /// inventory is open; it covers Valheim's screen completely and takes every
+    /// click, so nothing underneath can be touched by accident.
     ///
-    /// Controls: drag to move, R while dragging to rotate, Shift+drag to
-    /// split a stack, Ctrl+click to send to/from the open container,
-    /// double-click to use, right-click for more, drag off the panels to drop.
+    /// Item controls: drag to move (drop on a same-size item to swap), R while
+    /// dragging to rotate, Shift+drag to split, Ctrl+click to send to/from the
+    /// open container, double-click to use, middle-click to lock, right-click
+    /// for more.
     /// </summary>
-    internal class StashUi : MonoBehaviour
+    internal partial class StashUi : MonoBehaviour
     {
         public static StashUi Instance { get; private set; }
 
+        // Layout is done on a fixed 1920x1080 frame, scaled to fit the screen.
+        private const float FrameW = 1920f;
+        private const float FrameH = 1080f;
+        private const float TopH = 60f;
+        private const float BodyTop = 72f;
         private const float Pad = 12f;
         private const float Gap = 6f;
 
@@ -29,25 +46,24 @@ namespace TarkoValheim.Stash.UI
         private Canvas _canvas;
         private RectTransform _root;
         private RectTransform _content;
-        private RectTransform _main;
-        private RectTransform _containerPanel;
-        private RectTransform _scrollContent;
-        private float _savedScroll;
+        private RectTransform _frame;
 
         private RectTransform _tooltip;
         private Text _tooltipText;
         private RectTransform _menu;
 
         private readonly List<DropTarget> _targets = new List<DropTarget>();
-        private readonly Dictionary<Transform, Vector3> _hiddenVanilla = new Dictionary<Transform, Vector3>();
+        private readonly Dictionary<string, RectTransform> _scrollAreas = new Dictionary<string, RectTransform>();
+        private readonly Dictionary<string, float> _savedScroll = new Dictionary<string, float>();
 
+        private Tab _tab = Tab.Gear;
         private int _builtVersion = -1;
         private int _builtContainerSig;
         private Container _builtContainer;
+        private CraftingStation _builtStation;
         private float _nextCheck;
         private bool _wasVisible;
         private static bool _dirty;
-        private Vector2 _mainOffset = new Vector2(24f, 0f);
         private float _fitScale = 1f;
 
         private ItemDrop.ItemData _modGun;
@@ -94,9 +110,15 @@ namespace TarkoValheim.Stash.UI
                 EnsureCanvas();
                 _canvasGo.SetActive(true);
 
+                var container = CurrentContainer();
+                var station = player.GetCurrentCraftingStation();
                 if (!_wasVisible)
                 {
                     _wasVisible = true;
+                    // Opened at a workbench: straight to crafting. Otherwise gear.
+                    _tab = container == null && station != null ? Tab.Crafting : Tab.Gear;
+                    _craftSelection = null;
+                    _craftUpgrade = null;
                     Reconciler.Run(player);
                     _dirty = true;
                 }
@@ -110,7 +132,6 @@ namespace TarkoValheim.Stash.UI
                     return;
                 }
 
-                var container = CurrentContainer();
                 if (Time.time >= _nextCheck)
                 {
                     _nextCheck = Time.time + 0.5f;
@@ -119,14 +140,19 @@ namespace TarkoValheim.Stash.UI
                     {
                         _dirty = true;
                     }
+                    // Health, food and skill numbers move on their own.
+                    if (_tab == Tab.Health || _tab == Tab.Skills)
+                    {
+                        _dirty = true;
+                    }
                 }
 
-                if (_dirty || _builtVersion != Reconciler.Version || container != _builtContainer)
+                if (_dirty || _builtVersion != Reconciler.Version || container != _builtContainer || station != _builtStation)
                 {
-                    Rebuild(player, container);
+                    Rebuild(player, container, station);
                 }
             }
-            catch (System.Exception e)
+            catch (Exception e)
             {
                 GameAccess.WarnOnce("StashUi.Update", e);
             }
@@ -155,7 +181,10 @@ namespace TarkoValheim.Stash.UI
         }
 
         // Valheim's own grids are scaled to zero rather than disabled, so its
-        // code that reads them keeps working.
+        // code that reads them keeps working. Everything else of Valheim's
+        // screen is simply covered.
+        private readonly Dictionary<Transform, Vector3> _hiddenVanilla = new Dictionary<Transform, Vector3>();
+
         private void HideVanilla(bool hide)
         {
             var gui = InventoryGui.instance;
@@ -205,7 +234,7 @@ namespace TarkoValheim.Stash.UI
             _canvas.sortingOrder = 10000;
             var scaler = _canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.referenceResolution = new Vector2(FrameW, FrameH);
             scaler.matchWidthOrHeight = 1f;
             _canvasGo.AddComponent<GraphicRaycaster>();
             _root = (RectTransform)_canvasGo.transform;
@@ -214,19 +243,24 @@ namespace TarkoValheim.Stash.UI
         }
 
         // ------------------------------------------------------------------
-        // Layout
+        // Shell
 
-        private void Rebuild(Player player, Container container)
+        private void Rebuild(Player player, Container container, CraftingStation station)
         {
             _dirty = false;
             _builtVersion = Reconciler.Version;
             _builtContainer = container;
+            _builtStation = station;
             _builtContainerSig = container != null ? ContainerSignature(container) : 0;
 
-            if (_scrollContent != null)
+            foreach (var kv in _scrollAreas)
             {
-                _savedScroll = _scrollContent.anchoredPosition.y;
+                if (kv.Value != null)
+                {
+                    _savedScroll[kv.Key] = kv.Value.anchoredPosition.y;
+                }
             }
+            _scrollAreas.Clear();
 
             if (_content != null)
             {
@@ -239,464 +273,129 @@ namespace TarkoValheim.Stash.UI
             UiKit.Stretch(_content);
             _content.SetAsFirstSibling();
 
-            var lo = Reconciler.Current ?? Loadout.Build(player);
-            BuildMain(player, lo);
+            // Covers Valheim's screen and swallows its clicks.
+            var screen = UiKit.Image(_content, "Screen", UiKit.ScreenBg);
+            UiKit.Stretch(screen.rectTransform);
 
-            _containerPanel = null;
-            _scrollContent = null;
+            _frame = UiKit.Rect("Frame", _content);
+            _frame.anchorMin = _frame.anchorMax = _frame.pivot = new Vector2(0.5f, 0.5f);
+            _frame.sizeDelta = new Vector2(FrameW, FrameH);
+            var size = _root.rect.size;
+            _fitScale = Mathf.Clamp(Mathf.Min(size.x / FrameW, size.y / FrameH), 0.4f, 1f);
+            _frame.localScale = Vector3.one * _fitScale;
+            _frame.anchoredPosition = Vector2.zero;
+
             if (_modGun != null && (_modInventory == null || !_modInventory.GetAllItems().Contains(_modGun)))
             {
                 _modGun = null;
             }
 
-            if (_modGun != null)
+            BuildTopBar(player, station);
+            switch (_tab)
             {
-                _containerPanel = ModPanel.Build(this, _content, player, _modGun, _modInventory, _targets);
-            }
-            else if (container != null && container.GetInventory() != null)
-            {
-                BuildContainer(container);
-            }
-
-            PlacePanels();
-        }
-
-        /// <summary>
-        /// Lays the inventory and container panels out left to right from the
-        /// left edge, and shrinks both if they would run into Valheim's
-        /// crafting panel or off the bottom of the screen.
-        /// </summary>
-        private void PlacePanels()
-        {
-            if (_main == null)
-            {
-                return;
-            }
-
-            float containerW = _containerPanel != null ? _containerPanel.sizeDelta.x : 0f;
-            float needW = _main.sizeDelta.x + (containerW > 0f ? 16f + containerW : 0f);
-            float needH = Mathf.Max(_main.sizeDelta.y, _containerPanel != null ? _containerPanel.sizeDelta.y : 0f);
-
-            var size = _root.rect.size;
-            float left = -size.x / 2f + _mainOffset.x;
-            float availW = RightLimit() - 16f - left;
-            float availH = size.y - 32f;
-            _fitScale = Mathf.Clamp(Mathf.Min(1f, availW / needW, availH / needH), 0.5f, 1f);
-
-            _main.localScale = Vector3.one * _fitScale;
-            _main.anchoredPosition = _mainOffset;
-            if (_containerPanel != null)
-            {
-                _containerPanel.localScale = Vector3.one * _fitScale;
-                _containerPanel.anchoredPosition = new Vector2(_mainOffset.x + (_main.sizeDelta.x + 16f) * _fitScale, _mainOffset.y);
-            }
-        }
-
-        // Left edge of Valheim's crafting panel in this canvas, if it sits on
-        // the right half of the screen; otherwise the screen's right edge.
-        private float RightLimit()
-        {
-            float edge = _root.rect.width / 2f;
-            var crafting = InventoryGui.instance != null ? GameAccess.CraftingPanel(InventoryGui.instance) : null;
-            if (crafting == null || !crafting.gameObject.activeInHierarchy)
-            {
-                return edge;
-            }
-
-            var corners = new Vector3[4];
-            crafting.GetWorldCorners(corners);
-            var canvas = crafting.GetComponentInParent<Canvas>();
-            var cam = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
-            var screen = RectTransformUtility.WorldToScreenPoint(cam, corners[0]);
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(_root, screen, null, out var local);
-            return local.x > 0f ? Mathf.Min(local.x, edge) : edge;
-        }
-
-        private void BuildMain(Player player, Loadout lo)
-        {
-            float cell = Plugin.CellSize.Value;
-            float box = Mathf.Round(cell * 1.5f);
-            var inventory = player.GetInventory();
-
-            var bg = UiKit.Image(_content, "Main", UiKit.PanelBg);
-            _main = bg.rectTransform;
-            _main.anchorMin = _main.anchorMax = new Vector2(0f, 0.5f);
-            _main.pivot = new Vector2(0f, 0.5f);
-
-            // Header (drag to move the panel).
-            var header = UiKit.Image(_main, "Header", new Color(0f, 0f, 0f, 0.35f));
-            header.gameObject.AddComponent<PanelMover>().Owner = this;
-            var title = UiKit.Text(header.transform, "Title", UiKit.L("$tv_ui_inventory"), 20, UiKit.Label, TextAnchor.MiddleLeft);
-            UiKit.Stretch(title.rectTransform, 6f);
-            var weight = UiKit.Text(header.transform, "Weight",
-                $"{UiKit.L("$tv_ui_weight")} {inventory.GetTotalWeight():0}/{GameAccess.MaxCarryWeight(player):0}",
-                16, UiKit.Label, TextAnchor.MiddleRight);
-            UiKit.Stretch(weight.rectTransform, 6f);
-
-            // Left column: equipment.
-            float leftW = 4 * box + 3 * Gap;
-            float x = Pad;
-            float y = Pad + 36f;
-            Label(_main, UiKit.L("$tv_ui_gear"), x, y, leftW, UiKit.Label);
-            y += 20f;
-
-            var row1 = new[] { SlotId.Head, SlotId.Body, SlotId.Legs, SlotId.Cape };
-            var row2 = new[] { SlotId.Belt, SlotId.Trinket, SlotId.Rig, SlotId.Backpack };
-            for (int i = 0; i < 4; i++)
-            {
-                SlotBox(lo, inventory, row1[i], x + i * (box + Gap), y, box, box);
-                SlotBox(lo, inventory, row2[i], x + i * (box + Gap), y + box + Gap, box, box);
-            }
-            y += 2 * (box + Gap);
-
-            SlotBox(lo, inventory, SlotId.Primary, x, y, leftW, box);
-            y += box + Gap;
-            SlotBox(lo, inventory, SlotId.Secondary, x, y, leftW, box);
-            y += box + Gap;
-            float half = (leftW - Gap) / 2f;
-            SlotBox(lo, inventory, SlotId.Holster, x, y, half, box);
-            SlotBox(lo, inventory, SlotId.Melee, x + half + Gap, y, half, box);
-            y += box + Gap;
-
-            SlotBox(lo, inventory, SlotId.Secure, x, y, box, box);
-            var secureNote = UiKit.Text(_main, "SecureNote", UiKit.L("$tv_ui_secure_note"), 13, UiKit.SecureText);
-            UiKit.TopLeft(secureNote.rectTransform, x + box + Gap, y + 4f, leftW - box - Gap, box);
-            y += box + Gap + 6f;
-
-            Label(_main, UiKit.L("$tv_ui_quick"), x, y, leftW, UiKit.Label);
-            y += 20f;
-            float qbox = Mathf.Round(cell * 1.2f);
-            for (int i = 0; i < 4; i++)
-            {
-                QuickBox(inventory, Loadout.QuickFirst + i, x + i * (qbox + Gap), y, qbox);
-            }
-            y += qbox + Gap;
-            float leftBottom = y;
-
-            // Right column: grids.
-            float rx = Pad + leftW + 20f;
-            float ry = Pad + 36f;
-            float rightW = Mathf.Max(4 * cell, 330f);
-
-            ry = GridSection(lo, Loadout.Pockets, UiKit.L("$tv_ui_pockets"), UiKit.Label, UiKit.CellBg, inventory, rx, ry, ref rightW);
-            ry = GridSection(lo, Loadout.RigGrid, UiKit.L("$tv_ui_rig") + SlotName(lo, SlotId.Rig), UiKit.Label, UiKit.CellBg, inventory, rx, ry, ref rightW);
-            ry = GridSection(lo, Loadout.SecureGrid, UiKit.L("$tv_ui_secure"), UiKit.SecureText, UiKit.SecureCellBg, inventory, rx, ry, ref rightW);
-            ry = GridSection(lo, Loadout.PackGrid, UiKit.L("$tv_ui_backpack") + SlotName(lo, SlotId.Backpack), UiKit.Label, UiKit.CellBg, inventory, rx, ry, ref rightW);
-
-            if (!lo.Grids.ContainsKey(Loadout.RigGrid) || !lo.Grids.ContainsKey(Loadout.PackGrid))
-            {
-                var hint = UiKit.Text(_main, "Hint", UiKit.L("$tv_ui_no_rig_hint"), 13, UiKit.Label);
-                UiKit.TopLeft(hint.rectTransform, rx, ry, rightW, 40f);
-                ry += 44f;
-            }
-
-            float width = rx + rightW + Pad;
-            float bottom = Mathf.Max(leftBottom, ry);
-
-            if (lo.Unplaced.Count > 0)
-            {
-                bottom = UnsortedStrip(lo.Unplaced, inventory, Pad, bottom + 4f, width - 2 * Pad, cell);
-            }
-
-            _main.sizeDelta = new Vector2(width, bottom + Pad);
-            UiKit.TopLeft((RectTransform)header.transform, 0f, 0f, width, 32f);
-        }
-
-        private static string SlotName(Loadout lo, SlotId slot)
-        {
-            return lo.Slots.TryGetValue(slot, out var item) ? " - " + UiKit.L(item.m_shared.m_name) : "";
-        }
-
-        private static void Label(RectTransform parent, string text, float x, float y, float w, Color color)
-        {
-            var t = UiKit.Text(parent, "Label", text, 14, color);
-            t.horizontalOverflow = HorizontalWrapMode.Overflow;
-            UiKit.TopLeft(t.rectTransform, x, y, w, 18f);
-        }
-
-        private void SlotBox(Loadout lo, Inventory inventory, SlotId slot, float x, float y, float w, float h)
-        {
-            var bg = UiKit.Image(_main, "Slot_" + slot, slot == SlotId.Secure ? UiKit.SecureCellBg : UiKit.SlotBg);
-            UiKit.TopLeft(bg.rectTransform, x, y, w, h);
-            var label = UiKit.Text(bg.transform, "Label", UiKit.L("$tv_slot_" + slot.ToString().ToLowerInvariant()),
-                11, new Color(1f, 1f, 1f, 0.45f));
-            UiKit.Stretch(label.rectTransform, 3f);
-
-            _targets.Add(new DropTarget
-            {
-                Rect = bg.rectTransform, Inventory = inventory, IsSlot = true, Slot = slot,
-                Cell = Plugin.CellSize.Value
-            });
-
-            if (lo.Slots.TryGetValue(slot, out var item))
-            {
-                AddItemView(bg.rectTransform, item, inventory, 0f, 0f, w, h, false);
-            }
-        }
-
-        private void QuickBox(Inventory inventory, int index, float x, float y, float size)
-        {
-            var bg = UiKit.Image(_main, "Quick_" + index, UiKit.SlotBg);
-            UiKit.TopLeft(bg.rectTransform, x, y, size, size);
-            var number = UiKit.Text(bg.transform, "Key", (index + 1).ToString(), 13, UiKit.Label);
-            UiKit.Stretch(number.rectTransform, 3f);
-
-            foreach (var item in inventory.GetAllItems())
-            {
-                if (Loc.QuickSlot(item) == index)
-                {
-                    var icon = UiKit.Image(bg.transform, "Icon", Color.white, false);
-                    icon.sprite = item.GetIcon();
-                    icon.preserveAspect = true;
-                    UiKit.Stretch(icon.rectTransform, 6f);
-                    var view = bg.gameObject.AddComponent<QuickSlotView>();
-                    view.Item = item;
+                case Tab.Crafting:
+                    BuildCrafting(player, station);
                     break;
-                }
+                case Tab.Skills:
+                    BuildSkills(player);
+                    break;
+                case Tab.Health:
+                    BuildHealth(player);
+                    break;
+                default:
+                    BuildGear(player, container);
+                    break;
             }
-
-            _targets.Add(new DropTarget { Rect = bg.rectTransform, Inventory = inventory, Quick = index });
         }
 
-        private float GridSection(Loadout lo, string gridId, string title, Color titleColor, Color cellColor,
-            Inventory inventory, float x, float y, ref float maxWidth)
+        private void BuildTopBar(Player player, CraftingStation station)
         {
-            if (!lo.Grids.TryGetValue(gridId, out var grid))
+            var bar = UiKit.Image(_frame, "TopBar", new Color(0.02f, 0.02f, 0.02f, 0.9f), false);
+            UiKit.TopLeft(bar.rectTransform, 0f, 0f, FrameW, TopH);
+            var line = UiKit.Image(_frame, "TopLine", UiKit.AccentDim, false);
+            UiKit.TopLeft(line.rectTransform, 0f, TopH, FrameW, 1f);
+
+            var back = UiKit.Button(_frame, "Back", "<  " + UiKit.L("$tv_ui_back"), () =>
             {
-                return y;
-            }
-
-            float cell = Plugin.CellSize.Value;
-            Label(_main, title, x, y, Mathf.Max(grid.W * cell, 240f), titleColor);
-            y += 20f;
-
-            var rt = DrawGrid(_main, grid, inventory, x, y, cellColor, null);
-            maxWidth = Mathf.Max(maxWidth, grid.W * cell);
-            return y + rt.sizeDelta.y + 10f;
-        }
-
-        private RectTransform DrawGrid(RectTransform parent, TGrid grid, Inventory inventory, float x, float y,
-            Color cellColor, RectTransform clip)
-        {
-            float cell = Plugin.CellSize.Value;
-            var rt = UiKit.Rect("Grid_" + grid.Id, parent);
-            UiKit.TopLeft(rt, x, y, grid.W * cell, grid.H * cell);
-
-            for (int i = 0; i < grid.W; i++)
-            {
-                for (int j = 0; j < grid.H; j++)
+                if (InventoryGui.instance != null)
                 {
-                    var c = UiKit.Image(rt, "Cell", cellColor, false);
-                    UiKit.TopLeft(c.rectTransform, i * cell + 1f, j * cell + 1f, cell - 2f, cell - 2f);
+                    GameAccess.HideInventory(InventoryGui.instance);
                 }
-            }
+            }, false, 16);
+            UiKit.TopLeft((RectTransform)back.transform, 20f, 12f, 130f, 36f);
 
-            var drawn = new HashSet<ItemDrop.ItemData>();
-            for (int j = 0; j < grid.H; j++)
+            var tabs = new[] { Tab.Gear, Tab.Crafting, Tab.Skills, Tab.Health };
+            float tabW = 190f;
+            float x = (FrameW - tabs.Length * tabW - (tabs.Length - 1) * 4f) / 2f;
+            foreach (var tab in tabs)
             {
-                for (int i = 0; i < grid.W; i++)
+                var t = tab;
+                string label = UiKit.L("$tv_tab_" + tab.ToString().ToLowerInvariant());
+                if (tab == Tab.Crafting && station != null)
                 {
-                    var item = grid.At(i, j);
-                    if (item == null || !drawn.Add(item) || !Loc.TryRead(item, out var loc))
-                    {
-                        continue;
-                    }
-
-                    var size = ItemSizes.Of(item, loc.Rot);
-                    AddItemView(rt, item, inventory, loc.X * cell, loc.Y * cell, size.x * cell, size.y * cell, loc.Rot);
+                    label += " *";
                 }
-            }
-
-            _targets.Add(new DropTarget
-            {
-                Rect = rt, Inventory = inventory, Grid = grid.Id, Model = grid, Cell = cell, Clip = clip
-            });
-            return rt;
-        }
-
-        private float UnsortedStrip(List<ItemDrop.ItemData> items, Inventory inventory, float x, float y, float width, float cell)
-        {
-            Label(_main, UiKit.L("$tv_ui_unsorted"), x, y, width, UiKit.Warning);
-            y += 20f;
-            int perRow = Mathf.Max(1, Mathf.FloorToInt(width / cell));
-            for (int i = 0; i < items.Count; i++)
-            {
-                AddItemView(_main, items[i], inventory, x + (i % perRow) * cell, y + (i / perRow) * cell, cell, cell, false);
-            }
-            return y + Mathf.CeilToInt(items.Count / (float)perRow) * cell + 4f;
-        }
-
-        private void BuildContainer(Container container)
-        {
-            float cell = Plugin.CellSize.Value;
-            var inventory = container.GetInventory();
-            var cl = ContainerLayout.Build(inventory);
-
-            float gridW = cl.Grid.W * cell;
-            float gridH = cl.Grid.H * cell;
-            float viewH = Mathf.Min(gridH, 720f);
-            float width = Mathf.Max(gridW + 2 * Pad, 260f);
-
-            var bg = UiKit.Image(_content, "Container", UiKit.PanelBg);
-            _containerPanel = bg.rectTransform;
-            _containerPanel.anchorMin = _containerPanel.anchorMax = new Vector2(0f, 0.5f);
-            _containerPanel.pivot = new Vector2(0f, 0.5f);
-
-            var title = UiKit.Text(_containerPanel, "Title", UiKit.L(GameAccess.ContainerTitle(container)), 18, UiKit.Label, TextAnchor.MiddleLeft);
-            UiKit.TopLeft(title.rectTransform, Pad, 4f, width - 120f, 28f);
-            var takeAll = UiKit.Button(_containerPanel, "TakeAll", UiKit.L("$tv_ui_take_all"), () =>
-            {
-                StashOps.TakeAll(inventory);
-                ReportError();
-                MarkDirty();
-            });
-            UiKit.TopLeft((RectTransform)takeAll.transform, width - Pad - 100f, 6f, 100f, 24f);
-
-            var viewport = UiKit.Image(_containerPanel, "Viewport", new Color(0f, 0f, 0f, 0.01f));
-            UiKit.TopLeft(viewport.rectTransform, Pad, 38f, gridW, viewH);
-            viewport.gameObject.AddComponent<RectMask2D>();
-
-            var scrollContent = UiKit.Rect("ScrollContent", viewport.rectTransform);
-            UiKit.TopLeft(scrollContent, 0f, 0f, gridW, gridH);
-            _scrollContent = scrollContent;
-
-            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
-            scroll.content = scrollContent;
-            scroll.viewport = viewport.rectTransform;
-            scroll.horizontal = false;
-            scroll.vertical = true;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = cell;
-
-            DrawGrid(scrollContent, cl.Grid, inventory, 0f, 0f, UiKit.CellBg, viewport.rectTransform);
-            scrollContent.anchoredPosition = new Vector2(0f, Mathf.Clamp(_savedScroll, 0f, Mathf.Max(0f, gridH - viewH)));
-
-            float bottom = 38f + viewH + 8f;
-            if (cl.Unplaced.Count > 0)
-            {
-                var note = UiKit.Text(_containerPanel, "Overflow", UiKit.L("$tv_ui_container_overflow"), 13, UiKit.Warning);
-                UiKit.TopLeft(note.rectTransform, Pad, bottom, width - 2 * Pad, 18f);
-                bottom += 20f;
-                int perRow = Mathf.Max(1, Mathf.FloorToInt(gridW / cell));
-                for (int i = 0; i < cl.Unplaced.Count; i++)
+                var button = UiKit.Button(_frame, "Tab_" + tab, label, () =>
                 {
-                    AddItemView(_containerPanel, cl.Unplaced[i], inventory,
-                        Pad + (i % perRow) * cell, bottom + (i / perRow) * cell, cell, cell, false);
-                }
-                bottom += Mathf.CeilToInt(cl.Unplaced.Count / (float)perRow) * cell + 4f;
+                    _tab = t;
+                    CloseMenu();
+                    MarkDirty();
+                }, _tab == tab, 17);
+                UiKit.TopLeft((RectTransform)button.transform, x, 10f, tabW, 40f);
+                x += tabW + 4f;
             }
 
-            _containerPanel.sizeDelta = new Vector2(width, bottom + Pad);
-        }
-
-        // ------------------------------------------------------------------
-        // Item drawing
-
-        private void AddItemView(RectTransform parent, ItemDrop.ItemData item, Inventory inventory,
-            float x, float y, float w, float h, bool rotated)
-        {
-            var bg = UiKit.Image(parent, "Item", CategoryColor(item));
-            UiKit.TopLeft(bg.rectTransform, x + 1f, y + 1f, w - 2f, h - 2f);
-
-            var icon = UiKit.Image(bg.transform, "Icon", Color.white, false);
-            icon.sprite = item.GetIcon();
-            icon.preserveAspect = true;
-            var irt = icon.rectTransform;
-            irt.anchorMin = irt.anchorMax = irt.pivot = new Vector2(0.5f, 0.5f);
-            irt.anchoredPosition = Vector2.zero;
-            if (rotated)
+            // Right: who and where.
+            string status;
+            var raid = RaidTracker.InRaid;
+            if (raid == true)
             {
-                irt.sizeDelta = new Vector2(h - 8f, w - 8f);
-                irt.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                int s = Mathf.FloorToInt(RaidTracker.RaidSeconds);
+                status = $"<color=#e0604f>{UiKit.L("$tv_ui_in_raid")}</color>  {s / 60:00}:{s % 60:00}";
+            }
+            else if (raid == false)
+            {
+                status = $"<color=#7fd36b>{UiKit.L("$tv_ui_in_hideout")}</color>";
             }
             else
             {
-                irt.sizeDelta = new Vector2(w - 8f, h - 8f);
+                status = "";
             }
-
-            if (item.m_shared.m_maxStackSize > 1)
-            {
-                var stack = UiKit.Text(bg.transform, "Stack", item.m_stack.ToString(), 13, Color.white, TextAnchor.LowerRight);
-                UiKit.Stretch(stack.rectTransform, 3f);
-            }
-
-            var gun = Firearms.FindGun(Gear.PrefabName(item));
-            if (gun != null)
-            {
-                var mag = UiKit.Text(bg.transform, "Mag", $"{GunState.Mag(item)}/{GunStats.Of(gun, item).MagSize}", 12,
-                    GunState.Jammed(item) ? UiKit.Warning : new Color(0.9f, 0.85f, 0.6f), TextAnchor.UpperLeft);
-                UiKit.Stretch(mag.rectTransform, 3f);
-            }
-
-            var magSpec = Magazines.Find(Gear.PrefabName(item));
-            if (magSpec != null)
-            {
-                var ml = UiKit.Text(bg.transform, "Rounds", $"{GunState.Mag(item)}/{magSpec.Capacity}", 12,
-                    new Color(0.9f, 0.85f, 0.6f), TextAnchor.UpperLeft);
-                UiKit.Stretch(ml.rectTransform, 3f);
-            }
-
-            var partSpec = GunParts.Find(Gear.PrefabName(item));
-            if (partSpec != null)
-            {
-                string tier = partSpec.Tier > 0 ? " " + new[] { "", "I", "II", "III", "IV", "V" }[partSpec.Tier] : "";
-                var pl = UiKit.Text(bg.transform, "Part", partSpec.Label + tier, 11, new Color(0.95f, 0.8f, 0.55f), TextAnchor.UpperLeft);
-                UiKit.Stretch(pl.rectTransform, 3f);
-            }
-
-            int quick = Loc.QuickSlot(item);
-            if (quick >= 0)
-            {
-                var q = UiKit.Text(bg.transform, "Quick", (quick + 1).ToString(), 12, UiKit.SecureText, TextAnchor.UpperRight);
-                UiKit.Stretch(q.rectTransform, 3f);
-            }
-
-            if (item.m_equipped)
-            {
-                var e = UiKit.Text(bg.transform, "Equipped", "E", 12, new Color(0.5f, 0.9f, 0.5f), TextAnchor.LowerLeft);
-                UiKit.Stretch(e.rectTransform, 3f);
-            }
-            else if (item.m_shared.m_useDurability && item.m_durability < item.GetMaxDurability() * 0.25f)
-            {
-                var d = UiKit.Text(bg.transform, "Worn", "!", 14, UiKit.Warning, TextAnchor.LowerLeft);
-                UiKit.Stretch(d.rectTransform, 3f);
-            }
-
-            var view = bg.gameObject.AddComponent<ItemView>();
-            view.Item = item;
-            view.Inventory = inventory;
-            view.Rotated = rotated;
-            view.Cell = Plugin.CellSize.Value;
+            var who = UiKit.Text(_frame, "Who", $"{player.GetPlayerName()}\n{status}", 14, UiKit.Label, TextAnchor.MiddleRight);
+            UiKit.TopLeft(who.rectTransform, FrameW - 420f, 6f, 400f, 48f);
         }
 
-        private static Color CategoryColor(ItemDrop.ItemData item)
+        /// <summary>A vertical scroll view; scroll position survives rebuilds.</summary>
+        private RectTransform ScrollArea(RectTransform parent, string key, float x, float y, float w, float h, float contentH,
+            out RectTransform viewport)
         {
-            var type = item.m_shared.m_itemType;
-            if (Gear.Find(item) != null)
-            {
-                return new Color(0.2f, 0.28f, 0.18f, 0.92f);
-            }
-            if (GunParts.Find(Gear.PrefabName(item)) != null)
-            {
-                return new Color(0.3f, 0.24f, 0.2f, 0.92f);
-            }
-            if (type == ItemDrop.ItemData.ItemType.Ammo || type == ItemDrop.ItemData.ItemType.AmmoNonEquipable)
-            {
-                return new Color(0.34f, 0.28f, 0.12f, 0.92f);
-            }
-            if (item.IsWeapon() || type == ItemDrop.ItemData.ItemType.Shield || type == ItemDrop.ItemData.ItemType.Tool)
-            {
-                return new Color(0.32f, 0.18f, 0.16f, 0.92f);
-            }
-            if (Loadout.ArmorSlotFor(item, out _))
-            {
-                return new Color(0.16f, 0.22f, 0.32f, 0.92f);
-            }
-            if (type == ItemDrop.ItemData.ItemType.Consumable)
-            {
-                return new Color(0.18f, 0.3f, 0.24f, 0.92f);
-            }
-            return new Color(0.26f, 0.26f, 0.26f, 0.92f);
+            var vp = UiKit.Image(parent, "Viewport_" + key, new Color(0f, 0f, 0f, 0.01f));
+            UiKit.TopLeft(vp.rectTransform, x, y, w, h);
+            vp.gameObject.AddComponent<RectMask2D>();
+            viewport = vp.rectTransform;
+
+            var content = UiKit.Rect("ScrollContent", vp.rectTransform);
+            UiKit.TopLeft(content, 0f, 0f, w, contentH);
+
+            var scroll = vp.gameObject.AddComponent<ScrollRect>();
+            scroll.content = content;
+            scroll.viewport = vp.rectTransform;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 40f;
+
+            _savedScroll.TryGetValue(key, out var saved);
+            content.anchoredPosition = new Vector2(0f, Mathf.Clamp(saved, 0f, Mathf.Max(0f, contentH - h)));
+            _scrollAreas[key] = content;
+            return content;
+        }
+
+        /// <summary>Scales a column down (never up) so it fits its space.</summary>
+        private static void FitInto(RectTransform rt, float naturalW, float naturalH, float maxW, float maxH)
+        {
+            float s = Mathf.Min(1f, maxW / Mathf.Max(1f, naturalW), maxH / Mathf.Max(1f, naturalH));
+            rt.localScale = Vector3.one * s;
         }
 
         // ------------------------------------------------------------------
@@ -706,6 +405,12 @@ namespace TarkoValheim.Stash.UI
         {
             if (e.button != PointerEventData.InputButton.Left || _dragView != null)
             {
+                return;
+            }
+            if (Loc.IsLocked(view.Item))
+            {
+                StashOps.LastError = "$tv_err_locked";
+                ReportError();
                 return;
             }
 
@@ -736,7 +441,7 @@ namespace TarkoValheim.Stash.UI
             icon.preserveAspect = true;
             SizeGhost();
 
-            var group = view.gameObject.AddComponent<CanvasGroup>();
+            var group = view.GetComponent<CanvasGroup>() ?? view.gameObject.AddComponent<CanvasGroup>();
             group.alpha = 0.35f;
             group.blocksRaycasts = false;
 
@@ -751,7 +456,7 @@ namespace TarkoValheim.Stash.UI
             var icon = (RectTransform)_ghost.GetChild(0);
             icon.anchorMin = icon.anchorMax = icon.pivot = new Vector2(0.5f, 0.5f);
             icon.anchoredPosition = Vector2.zero;
-            bool turned = _dragRot != false && ItemSizes.Of(_dragView.Item).x != ItemSizes.Of(_dragView.Item).y;
+            bool turned = _dragRot && ItemSizes.Of(_dragView.Item).x != ItemSizes.Of(_dragView.Item).y;
             icon.sizeDelta = turned ? new Vector2(size.y * cell - 8f, size.x * cell - 8f) : new Vector2(size.x * cell - 8f, size.y * cell - 8f);
             icon.localRotation = turned ? Quaternion.Euler(0f, 0f, 90f) : Quaternion.identity;
         }
@@ -803,13 +508,21 @@ namespace TarkoValheim.Stash.UI
             {
                 _ghostTint.color = new Color(0.5f, 0.5f, 0.5f, 0.35f);
             }
+            else if (target.Ground)
+            {
+                _ghostTint.color = UiKit.AccentDim;
+            }
             else if (target.Quick >= 0)
             {
                 _ghostTint.color = StashOps.IsPlayerInventory(_dragView.Inventory) ? UiKit.Good : UiKit.Bad;
             }
+            else if (StashOps.CanMove(_dragView.Item, _dragView.Inventory, dest, _dragAmount))
+            {
+                _ghostTint.color = UiKit.Good;
+            }
             else
             {
-                _ghostTint.color = StashOps.CanMove(_dragView.Item, _dragView.Inventory, dest, _dragAmount) ? UiKit.Good : UiKit.Bad;
+                _ghostTint.color = StashOps.CanSwap(_dragView.Item, _dragView.Inventory, dest) ? UiKit.Swap : UiKit.Bad;
             }
         }
 
@@ -824,7 +537,6 @@ namespace TarkoValheim.Stash.UI
             var from = _dragView.Inventory;
             int amount = _dragAmount;
             var target = FindTarget(e.position, out var dest);
-            bool overPanels = Contains(_main, e.position) || Contains(_containerPanel, e.position);
             var gunUnder = AmmoOntoGun(item, target, e.position);
             CancelDrag();
 
@@ -865,6 +577,11 @@ namespace TarkoValheim.Stash.UI
                     ReportError();
                 }
             }
+            else if (target != null && target.Ground)
+            {
+                StashOps.Drop(item, from, amount);
+                ReportError();
+            }
             else if (target != null && target.Quick >= 0)
             {
                 if (StashOps.IsPlayerInventory(from))
@@ -876,13 +593,13 @@ namespace TarkoValheim.Stash.UI
             {
                 if (!StashOps.Move(item, from, dest, amount))
                 {
-                    ReportError();
+                    string error = StashOps.LastError;
+                    if (amount != item.m_stack || !StashOps.Swap(item, from, dest))
+                    {
+                        StashOps.LastError = error;
+                        ReportError();
+                    }
                 }
-            }
-            else if (!overPanels && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
-            {
-                StashOps.Drop(item, from, amount);
-                ReportError();
             }
 
             MarkDirty();
@@ -912,7 +629,7 @@ namespace TarkoValheim.Stash.UI
         {
             var name = Gear.PrefabName(dragged);
             bool isAmmo = Firearms.FindAmmo(name) != null;
-            if (target == null || target.Quick >= 0 || target.ModSlot >= 0
+            if (target == null || target.Quick >= 0 || target.ModSlot >= 0 || target.Ground
                 || (!isAmmo && GunParts.Find(name) == null && Magazines.Find(name) == null))
             {
                 return null;
@@ -955,7 +672,7 @@ namespace TarkoValheim.Stash.UI
                     continue;
                 }
 
-                if (t.Quick >= 0 || t.ModSlot >= 0)
+                if (t.Quick >= 0 || t.ModSlot >= 0 || t.Ground)
                 {
                     return t;
                 }
@@ -966,6 +683,7 @@ namespace TarkoValheim.Stash.UI
                     return t;
                 }
 
+                // Grid coordinates: the target rect may be scaled with its column.
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(t.Rect, screen, null, out var lp);
                 float left = lp.x - _grab.x;
                 float top = -lp.y - _grab.y;
@@ -1001,6 +719,14 @@ namespace TarkoValheim.Stash.UI
             if (e.button == PointerEventData.InputButton.Right)
             {
                 OpenMenu(view, e.position, containerInventory);
+                return;
+            }
+
+            if (e.button == PointerEventData.InputButton.Middle)
+            {
+                Loc.SetLocked(view.Item, !Loc.IsLocked(view.Item));
+                GameAccess.Changed(view.Inventory);
+                MarkDirty();
                 return;
             }
 
@@ -1052,43 +778,62 @@ namespace TarkoValheim.Stash.UI
             var item = view.Item;
             var from = view.Inventory;
             bool own = StashOps.IsPlayerInventory(from);
+            bool locked = Loc.IsLocked(item);
             var entries = new List<KeyValuePair<string, Action>>();
 
-            entries.Add(new KeyValuePair<string, Action>(UiKit.L(own ? "$tv_menu_use" : "$tv_menu_take"),
-                () => Use(item, from, container)));
+            void Add(string token, string key, Action action)
+            {
+                string label = UiKit.L(token);
+                if (key != null)
+                {
+                    label += $"  <color=#8a8a84>{key}</color>";
+                }
+                entries.Add(new KeyValuePair<string, Action>(label, action));
+            }
+
+            Add(own ? "$tv_menu_use" : "$tv_menu_take", own ? UiKit.L("$tv_key_dblclick") : "Ctrl+LMB",
+                () => Use(item, from, container));
 
             var gun = Firearms.FindGun(Gear.PrefabName(item));
             if (gun != null)
             {
-                entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_modify"),
-                    () => OpenModPanel(item, from)));
+                Add("$tv_menu_modify", null, () => OpenModPanel(item, from));
             }
             if (gun != null && !gun.PerRoundReload && GunMods.InstalledMag(item) != null)
             {
-                entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_remove_mag"), () =>
+                Add("$tv_menu_remove_mag", null, () =>
                 {
                     GunMods.EjectMag(Player.m_localPlayer, item);
                     GameAccess.Changed(from);
-                }));
+                });
             }
             if (Magazines.Find(Gear.PrefabName(item)) != null && GunState.Mag(item) > 0)
             {
-                entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_unload"), () =>
+                Add("$tv_menu_unload", null, () =>
                 {
                     GunState.Unload(Player.m_localPlayer, item);
                     GameAccess.Changed(from);
-                }));
+                });
             }
             if (gun != null && gun.PerRoundReload && own && GunState.Mag(item) > 0)
             {
-                entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_unload"),
-                    () => GunState.Unload(Player.m_localPlayer, item)));
+                Add("$tv_menu_unload", null, () => GunState.Unload(Player.m_localPlayer, item));
             }
 
-            if (own && container != null)
+            // Turn it round where it lies, if there's room.
+            if (!locked && Loc.TryRead(item, out var loc) && !loc.IsSlot(out _))
             {
-                entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_to_container"),
-                    () => StashOps.QuickMove(item, from, container)));
+                var size = ItemSizes.Of(item);
+                var turned = new Dest { Inventory = from, Loc = new Loc { Grid = loc.Grid, X = loc.X, Y = loc.Y, Rot = !loc.Rot } };
+                if (size.x != size.y && StashOps.CanMove(item, from, turned, item.m_stack))
+                {
+                    Add("$tv_menu_rotate", null, () => StashOps.Move(item, from, turned, item.m_stack));
+                }
+            }
+
+            if (own && container != null && !locked)
+            {
+                Add("$tv_menu_to_container", "Ctrl+LMB", () => StashOps.QuickMove(item, from, container));
             }
 
             if (own && Reconciler.Current != null && Reconciler.Current.IsPlaced(item))
@@ -1101,13 +846,20 @@ namespace TarkoValheim.Stash.UI
                 }
                 if (Loc.QuickSlot(item) >= 0)
                 {
-                    entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_unbind"),
-                        () => StashOps.BindQuickSlot(item, -1)));
+                    Add("$tv_menu_unbind", null, () => StashOps.BindQuickSlot(item, -1));
                 }
             }
 
-            entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_drop"),
-                () => StashOps.Drop(item, from, item.m_stack)));
+            Add(locked ? "$tv_menu_unlock" : "$tv_menu_lock", "MMB", () =>
+            {
+                Loc.SetLocked(item, !locked);
+                GameAccess.Changed(from);
+            });
+
+            if (!locked)
+            {
+                Add("$tv_menu_drop", null, () => StashOps.Drop(item, from, item.m_stack));
+            }
 
             // Full-screen blocker: clicking anywhere else closes the menu.
             var blocker = UiKit.Image(_root, "MenuBlocker", new Color(0f, 0f, 0f, 0.001f));
@@ -1116,15 +868,22 @@ namespace TarkoValheim.Stash.UI
             blockerButton.onClick.AddListener(CloseMenu);
             _menu = blocker.rectTransform;
 
-            var panel = UiKit.Image(_menu, "Menu", UiKit.PanelBg);
+            float w = 240f;
+            float rowH = 28f;
+            float h = entries.Count * rowH + 8f;
+            var panel = UiKit.Image(_menu, "Menu", UiKit.AccentDim);
+            var fill = UiKit.Image(panel.transform, "Fill", UiKit.PanelBg, false);
+            UiKit.Stretch(fill.rectTransform, 1f);
             var prt = panel.rectTransform;
             prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
             prt.pivot = new Vector2(0f, 1f);
+            prt.localScale = Vector3.one * _fitScale;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_root, screen, null, out var local);
+            var half = _root.rect.size / 2f;
+            local.x = Mathf.Min(local.x, half.x - w * _fitScale);
+            local.y = Mathf.Max(local.y, -half.y + h * _fitScale);
             prt.anchoredPosition = local;
-            float w = 180f;
-            float rowH = 26f;
-            prt.sizeDelta = new Vector2(w, entries.Count * rowH + 8f);
+            prt.sizeDelta = new Vector2(w, h);
 
             for (int i = 0; i < entries.Count; i++)
             {
@@ -1135,8 +894,14 @@ namespace TarkoValheim.Stash.UI
                     action();
                     ReportError();
                     MarkDirty();
-                });
+                }, false, 14);
                 UiKit.TopLeft((RectTransform)button.transform, 4f, 4f + i * rowH, w - 8f, rowH - 2f);
+                var label = button.GetComponentInChildren<Text>();
+                if (label != null)
+                {
+                    label.alignment = TextAnchor.MiddleLeft;
+                    UiKit.Stretch(label.rectTransform, 8f);
+                }
             }
         }
 
@@ -1163,12 +928,14 @@ namespace TarkoValheim.Stash.UI
 
         private void BuildTooltip()
         {
-            var bg = UiKit.Image(_root, "Tooltip", new Color(0.05f, 0.05f, 0.05f, 0.96f), false);
+            var bg = UiKit.Image(_root, "Tooltip", UiKit.AccentDim, false);
             _tooltip = bg.rectTransform;
             _tooltip.anchorMin = _tooltip.anchorMax = new Vector2(0.5f, 0.5f);
             _tooltip.pivot = new Vector2(0f, 1f);
+            var fill = UiKit.Image(_tooltip, "Fill", new Color(0.05f, 0.05f, 0.05f, 0.97f), false);
+            UiKit.Stretch(fill.rectTransform, 1f);
             _tooltipText = UiKit.Text(_tooltip, "Text", "", 15, Color.white);
-            UiKit.Stretch(_tooltipText.rectTransform, 8f);
+            UiKit.Stretch(_tooltipText.rectTransform, 10f);
             _tooltip.gameObject.SetActive(false);
         }
 
@@ -1181,7 +948,16 @@ namespace TarkoValheim.Stash.UI
 
             var item = view.Item;
             var size = ItemSizes.Of(item);
-            string text = "<size=18><b>" + UiKit.L(item.m_shared.m_name) + "</b></size>\n";
+            string text = "<size=18><b>" + UiKit.L(item.m_shared.m_name) + "</b></size>";
+            if (item.m_shared.m_maxQuality > 1)
+            {
+                text += $"  <color=#8a8a84>{UiKit.L("$tv_ui_quality")} {item.m_quality}/{item.m_shared.m_maxQuality}</color>";
+            }
+            if (Loc.IsLocked(item))
+            {
+                text += $"  <color=#e39b3b>{UiKit.L("$tv_ui_locked")}</color>";
+            }
+            text += "\n";
             try
             {
                 text += UiKit.L(item.GetTooltip());
@@ -1197,9 +973,6 @@ namespace TarkoValheim.Stash.UI
             {
                 text += $"\n{UiKit.L("$tv_ui_mag")}: {GunState.Mag(item)}/{GunStats.Of(gun, item).MagSize} {UiKit.L(GunState.LoadedAmmoName(item))}";
                 text += $"\n{UiKit.L(gun.Caliber)}, {gun.Rpm} RPM, {GunState.ModeNames(gun)}";
-            }
-            if (gun != null)
-            {
                 foreach (var slot in GunParts.OpenSlots(gun))
                 {
                     var installed = GunMods.Installed(item, slot);
@@ -1227,13 +1000,17 @@ namespace TarkoValheim.Stash.UI
                 text += "\n" + UiKit.L("$tv_ui_mag_hint");
             }
 
+            // Keyboard and mouse shortcuts, so nobody has to guess.
+            text += "\n\n<size=13><color=#8a8a84>" + UiKit.L("$tv_ui_shortcuts") + "</color></size>";
+
             _tooltipText.text = text;
-            _tooltip.sizeDelta = new Vector2(360f, 16f + _tooltipText.preferredHeight);
+            _tooltip.localScale = Vector3.one * _fitScale;
+            _tooltip.sizeDelta = new Vector2(380f, 20f + _tooltipText.preferredHeight);
 
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_root, screen, null, out var local);
             var half = _root.rect.size / 2f;
-            float x = Mathf.Min(local.x + 18f, half.x - _tooltip.sizeDelta.x);
-            float y = Mathf.Max(local.y - 18f, -half.y + _tooltip.sizeDelta.y);
+            float x = Mathf.Min(local.x + 18f, half.x - _tooltip.sizeDelta.x * _fitScale);
+            float y = Mathf.Max(local.y - 18f, -half.y + _tooltip.sizeDelta.y * _fitScale);
             _tooltip.anchoredPosition = new Vector2(x, y);
             _tooltip.SetAsLastSibling();
             _tooltip.gameObject.SetActive(true);
@@ -1284,6 +1061,7 @@ namespace TarkoValheim.Stash.UI
         {
             _modGun = gun;
             _modInventory = inventory;
+            _tab = Tab.Gear;
             MarkDirty();
         }
 
@@ -1294,13 +1072,6 @@ namespace TarkoValheim.Stash.UI
             MarkDirty();
         }
 
-        public void MovePanel(Vector2 delta)
-        {
-            float scale = _canvas != null && _canvas.scaleFactor > 0f ? _canvas.scaleFactor : 1f;
-            _mainOffset += delta / scale;
-            PlacePanels();
-        }
-
         private void OnDestroy()
         {
             HideVanilla(false);
@@ -1308,17 +1079,6 @@ namespace TarkoValheim.Stash.UI
             {
                 Destroy(_canvasGo);
             }
-        }
-    }
-
-    /// <summary>Lets the inventory header drag the panel around.</summary>
-    internal class PanelMover : MonoBehaviour, IDragHandler
-    {
-        public StashUi Owner;
-
-        public void OnDrag(PointerEventData e)
-        {
-            Owner?.MovePanel(e.delta);
         }
     }
 

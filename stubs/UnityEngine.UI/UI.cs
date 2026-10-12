@@ -28,6 +28,7 @@ namespace UnityEngine.UI
         public HorizontalWrapMode horizontalOverflow { get; set; }
         public VerticalWrapMode verticalOverflow { get; set; }
         public float preferredHeight { get { throw null; } }
+        public float preferredWidth { get { throw null; } }
     }
 
     public abstract class BaseMeshEffect : MonoBehaviour { }
@@ -42,13 +43,19 @@ namespace UnityEngine.UI
 
     public struct ColorBlock
     {
+        public Color normalColor { get; set; }
         public Color highlightedColor { get; set; }
+        public Color pressedColor { get; set; }
+        public Color selectedColor { get; set; }
+        public Color disabledColor { get; set; }
+        public float colorMultiplier { get; set; }
     }
 
     public class Selectable : MonoBehaviour
     {
         public Graphic targetGraphic { get; set; }
         public ColorBlock colors { get; set; }
+        public bool interactable { get; set; }
     }
 
     public class Button : Selectable

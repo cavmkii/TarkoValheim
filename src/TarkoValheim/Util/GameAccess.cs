@@ -41,6 +41,15 @@ namespace TarkoValheim.Util
         private static readonly FieldInfo ContainerHeight = Field(typeof(Container), "m_height");
         private static readonly FieldInfo StationName = Field(typeof(CraftingStation), "m_name");
 
+        private static readonly MethodInfo StationGetLevel = Method(typeof(CraftingStation), "GetLevel");
+        private static readonly MethodInfo GuiHide = Method(typeof(InventoryGui), "Hide");
+        private static readonly MethodInfo GuiCanRepair =
+            AccessTools.Method(typeof(InventoryGui), "CanRepair", new[] { typeof(ItemDrop.ItemData) });
+        private static readonly MethodInfo PlayerBodyArmor = Method(typeof(Player), "GetBodyArmor");
+        private static readonly MethodInfo PlayerFoods = Method(typeof(Player), "GetFoods");
+        private static readonly MethodInfo SkillPercent = Method(typeof(Skills.Skill), "GetLevelPercentage");
+        private static readonly FieldInfo RecipeOnlyOne = AccessTools.Field(typeof(Recipe), "m_requireOnlyOneIngredient");
+
         private static readonly MethodInfo FindHitObjectMethod =
             AccessTools.Method(typeof(Projectile), "FindHitObject", new[] { typeof(Collider) });
 
@@ -54,6 +63,37 @@ namespace TarkoValheim.Util
                 Plugin.Log?.LogWarning($"{type.Name}.{name} not found.");
             }
             return field;
+        }
+
+        // By name only, without throwing on overloads: the instance overload
+        // with the fewest parameters, searching base classes too.
+        private static MethodInfo Method(Type type, string name)
+        {
+            try
+            {
+                for (var t = type; t != null; t = t.BaseType)
+                {
+                    MethodInfo best = null;
+                    foreach (var m in AccessTools.GetDeclaredMethods(t))
+                    {
+                        if (m.Name == name && !m.IsStatic && (best == null || m.GetParameters().Length < best.GetParameters().Length))
+                        {
+                            best = m;
+                        }
+                    }
+                    if (best != null)
+                    {
+                        return best;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning($"{type.Name}.{name}: {e.Message}");
+                return null;
+            }
+            Plugin.Log?.LogWarning($"{type.Name}.{name} not found.");
+            return null;
         }
 
         private static T Get<T>(FieldInfo field, object target, T fallback)
@@ -97,13 +137,33 @@ namespace TarkoValheim.Util
             }
             try
             {
-                return method.Invoke(target, args);
+                return method.Invoke(target, WithDefaults(method, args));
             }
             catch (Exception e)
             {
                 WarnOnce(method.Name, e);
                 return null;
             }
+        }
+
+        // Pads the argument list with the method's declared defaults, so a
+        // game update that adds an optional parameter doesn't break the call.
+        private static object[] WithDefaults(MethodInfo method, object[] args)
+        {
+            var parameters = method.GetParameters();
+            if (args.Length >= parameters.Length)
+            {
+                return args;
+            }
+            var full = new object[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var p = parameters[i];
+                full[i] = i < args.Length ? args[i]
+                    : p.HasDefaultValue ? p.DefaultValue
+                    : p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null;
+            }
+            return full;
         }
 
         public static void WarnOnce(string key, Exception e)
@@ -206,6 +266,104 @@ namespace TarkoValheim.Util
         }
 
         public static void SetStationName(CraftingStation station, string name) => Set(StationName, station, name);
+
+        public static string GetStationName(CraftingStation station) => Get(StationName, station, station != null ? station.name : "");
+
+        public static int StationLevel(CraftingStation station)
+        {
+            if (station == null)
+            {
+                return 0;
+            }
+            return Call(StationGetLevel, station) is int level ? level : 1;
+        }
+
+        /// <summary>Closes Valheim's inventory screen.</summary>
+        public static void HideInventory(InventoryGui gui) => Call(GuiHide, gui);
+
+        /// <summary>Valheim's own repair check (station type and level), or
+        /// null when the method can't be found.</summary>
+        public static bool? CanRepair(InventoryGui gui, ItemDrop.ItemData item)
+        {
+            if (GuiCanRepair == null || gui == null)
+            {
+                return null;
+            }
+            return Call(GuiCanRepair, gui, item) is bool ok ? ok : (bool?)null;
+        }
+
+        public static float BodyArmor(Player player) => Call(PlayerBodyArmor, player) is float a ? a : 0f;
+
+        /// <summary>Active foods as (item, seconds left). Empty if unavailable.</summary>
+        public static List<KeyValuePair<ItemDrop.ItemData, float>> Foods(Player player)
+        {
+            var list = new List<KeyValuePair<ItemDrop.ItemData, float>>();
+            if (!(Call(PlayerFoods, player) is System.Collections.IEnumerable foods))
+            {
+                return list;
+            }
+            foreach (var food in foods)
+            {
+                if (food == null)
+                {
+                    continue;
+                }
+                var t = food.GetType();
+                var item = AccessTools.Field(t, "m_item")?.GetValue(food) as ItemDrop.ItemData;
+                float time = AccessTools.Field(t, "m_time")?.GetValue(food) is float f ? f : 0f;
+                if (item != null)
+                {
+                    list.Add(new KeyValuePair<ItemDrop.ItemData, float>(item, time));
+                }
+            }
+            return list;
+        }
+
+        /// <summary>Progress to the next level, 0..1.</summary>
+        public static float SkillProgress(Skills.Skill skill)
+        {
+            if (!(Call(SkillPercent, skill) is float p))
+            {
+                return 0f;
+            }
+            // Some versions return 0..100, others 0..1.
+            return Mathf.Clamp01(p > 1f ? p / 100f : p);
+        }
+
+        /// <summary>Active status effects as (name token, icon). Empty if unavailable.</summary>
+        public static List<KeyValuePair<string, Sprite>> StatusEffects(Character character)
+        {
+            var list = new List<KeyValuePair<string, Sprite>>();
+            try
+            {
+                var seman = Method(typeof(Character), "GetSEMan")?.Invoke(character, new object[0]);
+                var effects = seman != null ? Method(seman.GetType(), "GetStatusEffects")?.Invoke(seman, new object[0]) : null;
+                if (effects is System.Collections.IEnumerable all)
+                {
+                    foreach (var se in all)
+                    {
+                        if (se == null)
+                        {
+                            continue;
+                        }
+                        var t = se.GetType();
+                        string name = AccessTools.Field(t, "m_name")?.GetValue(se) as string;
+                        var icon = AccessTools.Field(t, "m_icon")?.GetValue(se) as Sprite;
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            list.Add(new KeyValuePair<string, Sprite>(name, icon));
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                WarnOnce("StatusEffects", e);
+            }
+            return list;
+        }
+
+        public static bool RequireOnlyOneIngredient(Recipe recipe) => Get(RecipeOnlyOne, recipe, false);
 
         public static GameObject FindHitObject(Collider collider)
         {

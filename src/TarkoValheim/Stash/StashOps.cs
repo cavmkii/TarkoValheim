@@ -284,6 +284,11 @@ namespace TarkoValheim.Stash
                 return false;
             }
 
+            if (Loc.IsLocked(item))
+            {
+                return Fail("$tv_err_locked");
+            }
+
             if (IsPlayerInventory(from))
             {
                 if (container == null)
@@ -308,6 +313,91 @@ namespace TarkoValheim.Stash
             return Move(item, from, new Dest { Inventory = player.GetInventory(), Loc = dest }, item.m_stack);
         }
 
+        // ------------------------------------------------------------------
+        // Swapping two items of the same size
+
+        public static bool CanSwap(ItemDrop.ItemData item, Inventory from, Dest dest)
+        {
+            return FindSwap(item, from, dest, out _, out _, out _);
+        }
+
+        /// <summary>Dropping an item squarely onto another of the same size in
+        /// the same inventory trades their places.</summary>
+        public static bool Swap(ItemDrop.ItemData item, Inventory from, Dest dest)
+        {
+            var player = Player.m_localPlayer;
+            if (player == null || !FindSwap(item, from, dest, out var other, out var itemLoc, out var otherLoc))
+            {
+                return false;
+            }
+
+            System.Action write = () =>
+            {
+                Loc.Write(item, otherLoc);
+                Loc.Write(other, itemLoc);
+                GameAccess.Changed(from);
+            };
+            if (IsPlayerInventory(from))
+            {
+                Reconciler.Batch(player, write);
+            }
+            else
+            {
+                write();
+            }
+            return true;
+        }
+
+        private static bool FindSwap(ItemDrop.ItemData item, Inventory from, Dest dest,
+            out ItemDrop.ItemData other, out Loc itemTo, out Loc otherTo)
+        {
+            other = null;
+            itemTo = otherTo = default(Loc);
+            var player = Player.m_localPlayer;
+            if (player == null || item == null || dest.Inventory != from || dest.Loc.IsSlot(out _)
+                || !Loc.TryRead(item, out var il) || il.IsSlot(out _))
+            {
+                return false;
+            }
+
+            TGrid grid;
+            if (IsPlayerInventory(from))
+            {
+                Loadout.Build(player).Grids.TryGetValue(dest.Loc.Grid ?? "", out grid);
+            }
+            else
+            {
+                grid = dest.Loc.Grid == Loadout.ContainerGrid ? ContainerLayout.Build(from).Grid : null;
+            }
+            if (grid == null)
+            {
+                return false;
+            }
+
+            other = grid.At(dest.Loc.X, dest.Loc.Y);
+            if (other == null || other == item || Loc.IsLocked(other) || !Loc.TryRead(other, out var ol) || ol.IsSlot(out _))
+            {
+                return false;
+            }
+
+            // Same footprint both ways round.
+            var dragged = ItemSizes.Of(item, dest.Loc.Rot);
+            if (dragged != ItemSizes.Of(other, ol.Rot))
+            {
+                return false;
+            }
+            var hole = ItemSizes.Of(item, il.Rot);
+            bool otherRot = ItemSizes.Of(other, ol.Rot) == hole ? ol.Rot : !ol.Rot;
+            if (ItemSizes.Of(other, otherRot) != hole)
+            {
+                return false;
+            }
+
+            itemTo = new Loc { Grid = ol.Grid, X = ol.X, Y = ol.Y, Rot = dest.Loc.Rot };
+            otherTo = new Loc { Grid = il.Grid, X = il.X, Y = il.Y, Rot = otherRot };
+            return true;
+        }
+
         public static void TakeAll(Inventory container)
         {
             string error = null;
@@ -326,6 +416,11 @@ namespace TarkoValheim.Stash
             var player = Player.m_localPlayer;
             if (player == null)
             {
+                return;
+            }
+            if (Loc.IsLocked(item))
+            {
+                Fail("$tv_err_locked");
                 return;
             }
 

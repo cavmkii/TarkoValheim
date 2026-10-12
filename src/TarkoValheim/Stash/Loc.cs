@@ -87,6 +87,28 @@ namespace TarkoValheim.Stash
             item.m_customData.Remove(Key);
         }
 
+        private const string LockKey = "tv_lock";
+
+        /// <summary>Locked items (middle-click) can't be dragged, dropped or
+        /// sent anywhere until unlocked.</summary>
+        public static bool IsLocked(ItemDrop.ItemData item)
+        {
+            return item?.m_customData != null && item.m_customData.ContainsKey(LockKey);
+        }
+
+        public static void SetLocked(ItemDrop.ItemData item, bool locked)
+        {
+            Own(item);
+            if (locked)
+            {
+                item.m_customData[LockKey] = "1";
+            }
+            else
+            {
+                item.m_customData.Remove(LockKey);
+            }
+        }
+
         /// <summary>Hotbar index 4..7 (keys 5..8) the player bound this item to, or -1.</summary>
         public static int QuickSlot(ItemDrop.ItemData item)
         {
