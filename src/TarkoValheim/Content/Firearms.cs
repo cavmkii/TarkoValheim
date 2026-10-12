@@ -4,6 +4,12 @@ using Jotunn.Managers;
 
 namespace TarkoValheim.Content
 {
+    internal enum SightType
+    {
+        Irons,
+        Scope
+    }
+
     internal enum FireMode
     {
         Single,
@@ -42,6 +48,7 @@ namespace TarkoValheim.Content
         public float HipSpread;
         public float AdsSpread;
         public float AdsFov;
+        public SightType Sight;
         public float Velocity;
         public float Durability;
         public float Weight;
@@ -127,7 +134,7 @@ namespace TarkoValheim.Content
             {
                 Id = "TV_Mosin", Caliber = "$tv_cal_762x54r", SizeW = 5, SizeH = 1,
                 MagSize = 5, PerRoundReload = true, ReloadTime = 0.65f, Rpm = 30, Modes = new[] { FireMode.Single },
-                RecoilUp = 6f, RecoilSide = 1f, HipSpread = 3.5f, AdsSpread = 0.08f, AdsFov = 30f,
+                RecoilUp = 6f, RecoilSide = 1f, HipSpread = 3.5f, AdsSpread = 0.08f, AdsFov = 42f,
                 Velocity = 820f, Durability = 400f, Weight = 4f,
                 Requirements = new[] { R("Iron", 16), R("FineWood", 12), R("LeatherScraps", 4) }
             },
@@ -135,7 +142,8 @@ namespace TarkoValheim.Content
             {
                 Id = "TV_SVD", Caliber = "$tv_cal_762x54r", SizeW = 5, SizeH = 1,
                 MagSize = 10, ReloadTime = 3f, Rpm = 300, Modes = new[] { FireMode.Single },
-                RecoilUp = 3.2f, RecoilSide = 1.2f, HipSpread = 3.5f, AdsSpread = 0.12f, AdsFov = 30f,
+                RecoilUp = 3.2f, RecoilSide = 1.2f, HipSpread = 3.5f, AdsSpread = 0.12f, AdsFov = 16f,
+                Sight = SightType.Scope,
                 Velocity = 800f, Durability = 500f, Weight = 4.3f,
                 Requirements = new[] { R("BlackMetal", 12), R("Iron", 10), R("FineWood", 8), R("Silver", 4) }
             },

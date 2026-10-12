@@ -17,6 +17,7 @@ namespace TarkoValheim.Guns
         private Text _ammo;
         private RectTransform[] _ticks;
         private RectTransform _dot;
+        private SightOverlay _sight;
         private bool _hidVanillaCrosshair;
 
         private void LateUpdate()
@@ -66,14 +67,15 @@ namespace TarkoValheim.Guns
                 float fov = cam != null ? cam.fieldOfView : 65f;
                 float radius = 540f * Mathf.Tan(controller.CurrentSpread() * Mathf.Deg2Rad) / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad);
                 radius = Mathf.Clamp(radius, 4f, 200f);
-                bool ticks = Plugin.Crosshair.Value && controller.Ads < 0.9f;
+                bool covered = _sight.Update(gun, controller.Ads);
+            bool ticks = Plugin.Crosshair.Value && controller.Ads < 0.9f && !covered;
                 for (int i = 0; i < 4; i++)
                 {
                     _ticks[i].gameObject.SetActive(ticks);
                     var dir = i == 0 ? Vector2.up : i == 1 ? Vector2.down : i == 2 ? Vector2.left : Vector2.right;
                     _ticks[i].anchoredPosition = dir * (radius + 5f);
                 }
-                _dot.gameObject.SetActive(Plugin.Crosshair.Value);
+                _dot.gameObject.SetActive(Plugin.Crosshair.Value && !covered);
             }
             catch (System.Exception e)
             {
@@ -130,6 +132,9 @@ namespace TarkoValheim.Guns
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 1f;
             var root = (RectTransform)_canvasGo.transform;
+
+            // First, so the ammo readout and crosshair draw on top of it.
+            _sight = new SightOverlay(root);
 
             _ammo = UiKit.Text(root, "Ammo", "", 18, new Color(0.95f, 0.92f, 0.82f), TextAnchor.LowerRight);
             var art = _ammo.rectTransform;

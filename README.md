@@ -54,8 +54,10 @@ Firing no longer uses Valheim's crossbow attack:
 - **Fire modes:** **B** toggles them (the AK has auto and semi).
 - **Recoil** kicks the view up and sideways. Higher Crossbows skill reduces it.
 - **Aim down sights:** hold **right mouse**. The camera moves to first person
-  and zooms, and spread tightens. Your character model is hidden while aiming,
-  because there's no gun model to look down yet.
+  and zooms, spread tightens, and a sight picture is drawn over the screen:
+  iron sights (front post in a rear notch) for most guns, and a PSO-style scope
+  with about 4x zoom for the SVD. The sights are flat overlays drawn in code.
+  Real 3D sights need gun models from a Unity asset bundle.
 - **Spread** grows while moving and during sustained fire.
 - **Malfunctions** get more likely as durability falls. **R** clears them.
 - **Ammo types per caliber:** 9x18 PST/PBM, 12ga buckshot/slug, 5.45 PS/BS,

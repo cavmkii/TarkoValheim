@@ -47,8 +47,8 @@ namespace TarkoValheim.Stash.UI
         private float _nextCheck;
         private bool _wasVisible;
         private static bool _dirty;
-        private Vector2 _mainOffset = new Vector2(-24f, 0f);
-        private float _mainWidth;
+        private Vector2 _mainOffset = new Vector2(24f, 0f);
+        private float _fitScale = 1f;
 
         private ItemView _dragView;
         private int _dragAmount;
@@ -242,6 +242,59 @@ namespace TarkoValheim.Stash.UI
             {
                 BuildContainer(container);
             }
+
+            PlacePanels();
+        }
+
+        /// <summary>
+        /// Lays the inventory and container panels out left to right from the
+        /// left edge, and shrinks both if they would run into Valheim's
+        /// crafting panel or off the bottom of the screen.
+        /// </summary>
+        private void PlacePanels()
+        {
+            if (_main == null)
+            {
+                return;
+            }
+
+            float containerW = _containerPanel != null ? _containerPanel.sizeDelta.x : 0f;
+            float needW = _main.sizeDelta.x + (containerW > 0f ? 16f + containerW : 0f);
+            float needH = Mathf.Max(_main.sizeDelta.y, _containerPanel != null ? _containerPanel.sizeDelta.y : 0f);
+
+            var size = _root.rect.size;
+            float left = -size.x / 2f + _mainOffset.x;
+            float availW = RightLimit() - 16f - left;
+            float availH = size.y - 32f;
+            _fitScale = Mathf.Clamp(Mathf.Min(1f, availW / needW, availH / needH), 0.5f, 1f);
+
+            _main.localScale = Vector3.one * _fitScale;
+            _main.anchoredPosition = _mainOffset;
+            if (_containerPanel != null)
+            {
+                _containerPanel.localScale = Vector3.one * _fitScale;
+                _containerPanel.anchoredPosition = new Vector2(_mainOffset.x + (_main.sizeDelta.x + 16f) * _fitScale, _mainOffset.y);
+            }
+        }
+
+        // Left edge of Valheim's crafting panel in this canvas, if it sits on
+        // the right half of the screen; otherwise the screen's right edge.
+        private float RightLimit()
+        {
+            float edge = _root.rect.width / 2f;
+            var crafting = InventoryGui.instance != null ? GameAccess.CraftingPanel(InventoryGui.instance) : null;
+            if (crafting == null || !crafting.gameObject.activeInHierarchy)
+            {
+                return edge;
+            }
+
+            var corners = new Vector3[4];
+            crafting.GetWorldCorners(corners);
+            var canvas = crafting.GetComponentInParent<Canvas>();
+            var cam = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            var screen = RectTransformUtility.WorldToScreenPoint(cam, corners[0]);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(_root, screen, null, out var local);
+            return local.x > 0f ? Mathf.Min(local.x, edge) : edge;
         }
 
         private void BuildMain(Player player, Loadout lo)
@@ -252,8 +305,8 @@ namespace TarkoValheim.Stash.UI
 
             var bg = UiKit.Image(_content, "Main", UiKit.PanelBg);
             _main = bg.rectTransform;
-            _main.anchorMin = _main.anchorMax = new Vector2(1f, 0.5f);
-            _main.pivot = new Vector2(1f, 0.5f);
+            _main.anchorMin = _main.anchorMax = new Vector2(0f, 0.5f);
+            _main.pivot = new Vector2(0f, 0.5f);
 
             // Header (drag to move the panel).
             var header = UiKit.Image(_main, "Header", new Color(0f, 0f, 0f, 0.35f));
@@ -330,9 +383,7 @@ namespace TarkoValheim.Stash.UI
                 bottom = UnsortedStrip(lo.Unplaced, inventory, Pad, bottom + 4f, width - 2 * Pad, cell);
             }
 
-            _mainWidth = width;
             _main.sizeDelta = new Vector2(width, bottom + Pad);
-            _main.anchoredPosition = _mainOffset;
             UiKit.TopLeft((RectTransform)header.transform, 0f, 0f, width, 32f);
         }
 
@@ -473,9 +524,8 @@ namespace TarkoValheim.Stash.UI
 
             var bg = UiKit.Image(_content, "Container", UiKit.PanelBg);
             _containerPanel = bg.rectTransform;
-            _containerPanel.anchorMin = _containerPanel.anchorMax = new Vector2(1f, 0.5f);
-            _containerPanel.pivot = new Vector2(1f, 0.5f);
-            _containerPanel.anchoredPosition = new Vector2(_mainOffset.x - _mainWidth - 16f, _mainOffset.y);
+            _containerPanel.anchorMin = _containerPanel.anchorMax = new Vector2(0f, 0.5f);
+            _containerPanel.pivot = new Vector2(0f, 0.5f);
 
             var title = UiKit.Text(_containerPanel, "Title", UiKit.L(GameAccess.ContainerTitle(container)), 18, UiKit.Label, TextAnchor.MiddleLeft);
             UiKit.TopLeft(title.rectTransform, Pad, 4f, width - 120f, 28f);
@@ -688,7 +738,8 @@ namespace TarkoValheim.Stash.UI
             }
 
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_root, e.position, null, out var local);
-            _ghost.anchoredPosition = local + new Vector2(-_grab.x, _grab.y);
+            _ghost.localScale = Vector3.one * _fitScale;
+            _ghost.anchoredPosition = local + new Vector2(-_grab.x, _grab.y) * _fitScale;
             _ghost.SetAsLastSibling();
 
             var target = FindTarget(e.position, out var dest);
@@ -1027,14 +1078,7 @@ namespace TarkoValheim.Stash.UI
         {
             float scale = _canvas != null && _canvas.scaleFactor > 0f ? _canvas.scaleFactor : 1f;
             _mainOffset += delta / scale;
-            if (_main != null)
-            {
-                _main.anchoredPosition = _mainOffset;
-            }
-            if (_containerPanel != null)
-            {
-                _containerPanel.anchoredPosition = new Vector2(_mainOffset.x - _mainWidth - 16f, _mainOffset.y);
-            }
+            PlacePanels();
         }
 
         private void OnDestroy()

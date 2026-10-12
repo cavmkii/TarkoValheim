@@ -4,7 +4,7 @@
     <TargetFramework>net462</TargetFramework>
     <AssemblyName>TarkoValheim</AssemblyName>
     <RootNamespace>TarkoValheim</RootNamespace>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
