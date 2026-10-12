@@ -42,4 +42,20 @@
     <Message Importance="High" Text="Deployed $(TargetFileName) to $(BEPINEX_PATH)/plugins/TarkoValheim" />
   </Target>
 
+  <!-- Installable archive for Vortex ("Install From File") or manual install.
+       The DLL sits at its full BepInEx path inside the zip. BepInEx loads
+       plugins from any subfolder of plugins/, so it loads whether Vortex
+       deploys the archive to the game root or into BepInEx/plugins. -->
+  <Target Name="PackageZip" AfterTargets="Build" Condition="'$(UseStubs)' != 'true'">
+    <PropertyGroup>
+      <_PackageStage>$(IntermediateOutputPath)package/</_PackageStage>
+      <_PackageDir>$(MSBuildThisFileDirectory)../../dist/</_PackageDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_PackageStage)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(_PackageStage)BepInEx/plugins/TarkoValheim" />
+    <MakeDir Directories="$(_PackageDir)" />
+    <ZipDirectory SourceDirectory="$(_PackageStage)" DestinationFile="$(_PackageDir)TarkoValheim-$(Version).zip" Overwrite="true" />
+    <Message Importance="High" Text="Packaged dist/TarkoValheim-$(Version).zip" />
+  </Target>
+
 </Project>

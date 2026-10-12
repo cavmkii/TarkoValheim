@@ -5,7 +5,9 @@
     <!-- Defaults to $(VALHEIM_INSTALL)\BepInEx. Set this if you use an
          r2modman / Thunderstore profile instead. -->
     <!-- <BEPINEX_PATH>C:\Users\you\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\Default\BepInEx</BEPINEX_PATH> -->
-    <!-- Copy the built DLL into BepInEx/plugins after each build. -->
-    <DeployToGame>true</DeployToGame>
+    <!-- Every build writes dist/TarkoValheim-<version>.zip for Vortex.
+         Set this to true to also copy the DLL straight into BepInEx/plugins,
+         bypassing Vortex. Leave it false if Vortex manages your mods. -->
+    <DeployToGame>false</DeployToGame>
   </PropertyGroup>
 </Project>
