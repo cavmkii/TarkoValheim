@@ -1,6 +1,8 @@
 // Hand-written stand-ins for the parts of assembly_valheim TarkoValheim uses.
-// Members are public where the real game has them private: the real build
-// compiles against Jotunn's publicized copy of the game, which does the same.
+// Members the mod is not certain are public in the real game are declared
+// private here, so any direct use fails this compile check. The game enforces
+// access at runtime even though the real build sees a publicized copy; those
+// members must go through TarkoValheim.Util.GameAccess (reflection).
 // Sources for each member: Jotunn 2.30.2's IL references, and current
 // EquipmentAndQuickSlots / EpicLoot (RandyKnapp) and aedenthorn's mods.
 using System.Collections.Generic;
@@ -14,10 +16,10 @@ public interface IDestructible
 
 public class Character : MonoBehaviour, IDestructible
 {
-    public Transform m_eye;
+    private Transform m_eye;
     public Skills GetSkills() { throw null; }
     public bool IsDead() { throw null; }
-    public bool TakeInput() { throw null; }
+    private bool TakeInput() { throw null; }
     public virtual void Message(MessageHud.MessageType type, string msg, int amount = 0, Sprite icon = null, bool b = false) { }
     public float GetSkillFactor(Skills.SkillType skill) { throw null; }
     public virtual void RaiseSkill(Skills.SkillType skill, float value = 1f) { }
@@ -28,12 +30,12 @@ public class Character : MonoBehaviour, IDestructible
 
 public class VisEquipment : MonoBehaviour
 {
-    public Transform m_leftHand;
+    private Transform m_leftHand;
 }
 
 public class Humanoid : Character
 {
-    public VisEquipment m_visEquipment;
+    private VisEquipment m_visEquipment;
     public Inventory GetInventory() { throw null; }
     public ItemDrop.ItemData GetCurrentWeapon() { throw null; }
     public bool EquipItem(ItemDrop.ItemData item, bool triggerEquipEffects = true) { throw null; }
@@ -47,9 +49,9 @@ public class Humanoid : Character
 public class Player : Humanoid
 {
     public static Player m_localPlayer;
-    public Dictionary<string, string> m_customData;
+    private Dictionary<string, string> m_customData;
     public bool InPlaceMode() { throw null; }
-    public float GetMaxCarryWeight() { throw null; }
+    private float GetMaxCarryWeight() { throw null; }
     protected override void OnDeath() { }
     private void CreateTombStone() { }
     private void Awake() { }
@@ -71,11 +73,11 @@ public class Skills : MonoBehaviour
 
 public class Inventory
 {
-    public int m_width;
-    public int m_height;
+    private int m_width;
+    private int m_height;
     public List<ItemDrop.ItemData> GetAllItems() { throw null; }
     public bool AddItem(ItemDrop.ItemData item) { throw null; }
-    public bool AddItem(ItemDrop.ItemData item, Vector2i pos) { throw null; }
+    private bool AddItem(ItemDrop.ItemData item, Vector2i pos) { throw null; }
     public bool RemoveItem(ItemDrop.ItemData item) { throw null; }
     public bool RemoveItem(ItemDrop.ItemData item, int amount) { throw null; }
     public bool CanAddItem(ItemDrop.ItemData item, int stack = -1) { throw null; }
@@ -86,7 +88,7 @@ public class Inventory
     public float GetTotalWeight() { throw null; }
     public bool MoveItemToThis(Inventory fromInventory, ItemDrop.ItemData item, int amount, int x, int y) { throw null; }
     public void MoveInventoryToGrave(Inventory original) { }
-    public void Changed() { }
+    private void Changed() { }
 }
 
 public struct Vector2i
@@ -173,7 +175,7 @@ public class EffectList
 
 public class Projectile : MonoBehaviour
 {
-    public static GameObject FindHitObject(Collider collider) { throw null; }
+    private static GameObject FindHitObject(Collider collider) { throw null; }
 }
 
 public class GameCamera : MonoBehaviour
@@ -185,23 +187,23 @@ public class GameCamera : MonoBehaviour
 public class Hud : MonoBehaviour
 {
     public static Hud instance { get { throw null; } }
-    public Image m_crosshair;
+    private Image m_crosshair;
 }
 
 public class InventoryGui : MonoBehaviour
 {
     public static InventoryGui instance { get { throw null; } }
     public static bool IsVisible() { throw null; }
-    public RectTransform m_player;
-    public RectTransform m_container;
-    public Container m_currentContainer;
+    private RectTransform m_player;
+    private RectTransform m_container;
+    private Container m_currentContainer;
 }
 
 public class Container : MonoBehaviour
 {
-    public string m_name;
-    public int m_width;
-    public int m_height;
+    private string m_name;
+    private int m_width;
+    private int m_height;
     public Inventory GetInventory() { throw null; }
 }
 
@@ -221,7 +223,7 @@ public static class ZInput
 
 public class CraftingStation : MonoBehaviour
 {
-    public string m_name;
+    private string m_name;
 }
 
 public class ZNetView : MonoBehaviour

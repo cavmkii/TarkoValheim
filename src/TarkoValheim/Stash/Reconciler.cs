@@ -1,6 +1,7 @@
-using System;
 using System.Collections.Generic;
+using System;
 using TarkoValheim.Content;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Stash
@@ -74,7 +75,7 @@ namespace TarkoValheim.Stash
 
                 if (moved)
                 {
-                    player.GetInventory().Changed();
+                    GameAccess.Changed(player.GetInventory());
                 }
             }
             catch (Exception e)
@@ -122,8 +123,11 @@ namespace TarkoValheim.Stash
 
         private static void GiveStarterKit(Player player)
         {
-            if (player.m_customData.ContainsKey(StarterKey))
+            var saved = GameAccess.CustomData(player);
+            if (saved == null || saved.ContainsKey(StarterKey))
             {
+                // No saved store means no way to remember the kit was given:
+                // better no kit than a new one every login.
                 return;
             }
 
@@ -152,11 +156,11 @@ namespace TarkoValheim.Stash
 
                 item.m_gridPos = Loadout.FreeInternalCell(inventory, 1, new Vector2i(0, 1));
                 Loc.Write(item, Loc.Slot(entry.Value));
-                inventory.AddItem(item, item.m_gridPos);
+                GameAccess.AddItemAt(inventory, item, item.m_gridPos);
                 lo = Loadout.Build(player);
             }
 
-            player.m_customData[StarterKey] = "1";
+            saved[StarterKey] = "1";
         }
 
         public static ItemDrop.ItemData CreateItem(string prefabName, int stack)

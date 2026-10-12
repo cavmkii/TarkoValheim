@@ -1,10 +1,11 @@
-using System;
 using System.Collections.Generic;
+using System;
 using TarkoValheim.Content;
 using TarkoValheim.Guns;
-using UnityEngine;
+using TarkoValheim.Util;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using UnityEngine;
 
 namespace TarkoValheim.Stash.UI
 {
@@ -68,61 +69,68 @@ namespace TarkoValheim.Stash.UI
 
         private void Update()
         {
-            var player = Player.m_localPlayer;
-            bool visible = Reconciler.Active && player != null && InventoryGui.instance != null && InventoryGui.IsVisible();
-            HideVanilla(Reconciler.Active);
-
-            if (!visible)
+            try
             {
-                if (_canvasGo != null)
+                var player = Player.m_localPlayer;
+                bool visible = Reconciler.Active && player != null && InventoryGui.instance != null && InventoryGui.IsVisible();
+                HideVanilla(Reconciler.Active);
+
+                if (!visible)
                 {
-                    _canvasGo.SetActive(false);
+                    if (_canvasGo != null)
+                    {
+                        _canvasGo.SetActive(false);
+                    }
+                    CancelDrag();
+                    CloseMenu();
+                    _wasVisible = false;
+                    return;
                 }
-                CancelDrag();
-                CloseMenu();
-                _wasVisible = false;
-                return;
-            }
 
-            EnsureCanvas();
-            _canvasGo.SetActive(true);
+                EnsureCanvas();
+                _canvasGo.SetActive(true);
 
-            if (!_wasVisible)
-            {
-                _wasVisible = true;
-                Reconciler.Run(player);
-                _dirty = true;
-            }
-
-            if (_dragView != null)
-            {
-                if (ZInput.GetKeyDown(KeyCode.R))
+                if (!_wasVisible)
                 {
-                    RotateDrag();
-                }
-                return;
-            }
-
-            var container = CurrentContainer();
-            if (Time.time >= _nextCheck)
-            {
-                _nextCheck = Time.time + 0.5f;
-                Reconciler.Run(player);
-                if (container != null && ContainerSignature(container) != _builtContainerSig)
-                {
+                    _wasVisible = true;
+                    Reconciler.Run(player);
                     _dirty = true;
                 }
-            }
 
-            if (_dirty || _builtVersion != Reconciler.Version || container != _builtContainer)
+                if (_dragView != null)
+                {
+                    if (ZInput.GetKeyDown(KeyCode.R))
+                    {
+                        RotateDrag();
+                    }
+                    return;
+                }
+
+                var container = CurrentContainer();
+                if (Time.time >= _nextCheck)
+                {
+                    _nextCheck = Time.time + 0.5f;
+                    Reconciler.Run(player);
+                    if (container != null && ContainerSignature(container) != _builtContainerSig)
+                    {
+                        _dirty = true;
+                    }
+                }
+
+                if (_dirty || _builtVersion != Reconciler.Version || container != _builtContainer)
+                {
+                    Rebuild(player, container);
+                }
+            }
+            catch (System.Exception e)
             {
-                Rebuild(player, container);
+                GameAccess.WarnOnce("StashUi.Update", e);
             }
         }
 
         private static Container CurrentContainer()
         {
-            return InventoryGui.instance != null ? InventoryGui.instance.m_currentContainer : null;
+            return InventoryGui.instance != null ? GameAccess.CurrentContainer(InventoryGui.instance) : null;
         }
 
         private static int ContainerSignature(Container container)
@@ -153,7 +161,7 @@ namespace TarkoValheim.Stash.UI
                 return;
             }
 
-            foreach (var rt in new Transform[] { gui.m_player, gui.m_container })
+            foreach (var rt in new Transform[] { GameAccess.PlayerPanel(gui), GameAccess.ContainerPanel(gui) })
             {
                 if (rt == null)
                 {
@@ -253,7 +261,7 @@ namespace TarkoValheim.Stash.UI
             var title = UiKit.Text(header.transform, "Title", UiKit.L("$tv_ui_inventory"), 20, UiKit.Label, TextAnchor.MiddleLeft);
             UiKit.Stretch(title.rectTransform, 6f);
             var weight = UiKit.Text(header.transform, "Weight",
-                $"{UiKit.L("$tv_ui_weight")} {inventory.GetTotalWeight():0}/{player.GetMaxCarryWeight():0}",
+                $"{UiKit.L("$tv_ui_weight")} {inventory.GetTotalWeight():0}/{GameAccess.MaxCarryWeight(player):0}",
                 16, UiKit.Label, TextAnchor.MiddleRight);
             UiKit.Stretch(weight.rectTransform, 6f);
 
@@ -469,7 +477,7 @@ namespace TarkoValheim.Stash.UI
             _containerPanel.pivot = new Vector2(1f, 0.5f);
             _containerPanel.anchoredPosition = new Vector2(_mainOffset.x - _mainWidth - 16f, _mainOffset.y);
 
-            var title = UiKit.Text(_containerPanel, "Title", UiKit.L(container.m_name), 18, UiKit.Label, TextAnchor.MiddleLeft);
+            var title = UiKit.Text(_containerPanel, "Title", UiKit.L(GameAccess.ContainerTitle(container)), 18, UiKit.Label, TextAnchor.MiddleLeft);
             UiKit.TopLeft(title.rectTransform, Pad, 4f, width - 120f, 28f);
             var takeAll = UiKit.Button(_containerPanel, "TakeAll", UiKit.L("$tv_ui_take_all"), () =>
             {

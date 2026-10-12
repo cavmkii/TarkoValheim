@@ -1,5 +1,5 @@
-using BepInEx;
 using BepInEx.Configuration;
+using BepInEx;
 using HarmonyLib;
 using Jotunn.Configs;
 using Jotunn.Managers;
@@ -7,8 +7,8 @@ using Jotunn.Utils;
 using TarkoValheim.Content;
 using TarkoValheim.Guns;
 using TarkoValheim.Raid;
-using TarkoValheim.Stash;
 using TarkoValheim.Stash.UI;
+using TarkoValheim.Stash;
 using UnityEngine;
 
 namespace TarkoValheim
@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.2.0";
+        public const string PluginVersion = "0.2.1";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;

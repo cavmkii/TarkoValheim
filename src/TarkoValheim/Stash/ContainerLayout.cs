@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TarkoValheim.Util;
 
 namespace TarkoValheim.Stash
 {
@@ -53,7 +54,7 @@ namespace TarkoValheim.Stash
 
             if (changed)
             {
-                inventory.Changed();
+                GameAccess.Changed(inventory);
             }
             return cl;
         }

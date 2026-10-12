@@ -1,4 +1,5 @@
 using TarkoValheim.Content;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Raid
@@ -41,48 +42,55 @@ namespace TarkoValheim.Raid
 
         private void Update()
         {
-            if (Time.time < _nextCheck)
+            try
             {
-                return;
-            }
-            _nextCheck = Time.time + 1f;
+                if (Time.time < _nextCheck)
+                {
+                    return;
+                }
+                _nextCheck = Time.time + 1f;
 
-            var player = Player.m_localPlayer;
-            if (player == null || player.IsDead())
-            {
-                _player = null;
-                _known = false;
-                return;
-            }
+                var player = Player.m_localPlayer;
+                if (player == null || player.IsDead())
+                {
+                    _player = null;
+                    _known = false;
+                    return;
+                }
 
-            if (player != _player)
-            {
-                _player = player;
-                _playerSeenAt = Time.time;
-            }
-            if (Time.time - _playerSeenAt < SpawnGrace)
-            {
-                return;
-            }
+                if (player != _player)
+                {
+                    _player = player;
+                    _playerSeenAt = Time.time;
+                }
+                if (Time.time - _playerSeenAt < SpawnGrace)
+                {
+                    return;
+                }
 
-            bool inRaid = !Hideout.IsNear(player.transform.position);
-            if (_known && inRaid == _inRaid)
-            {
-                return;
-            }
+                bool inRaid = !Hideout.IsNear(player.transform.position);
+                if (_known && inRaid == _inRaid)
+                {
+                    return;
+                }
 
-            if (inRaid)
-            {
-                _raidStart = Time.time;
-                Show(Localization.instance.Localize("$tv_msg_raid_start"));
-            }
-            else if (_known)
-            {
-                Show(Localization.instance.Localize("$tv_msg_extracted") + RaidTimeSuffix());
-            }
+                if (inRaid)
+                {
+                    _raidStart = Time.time;
+                    Show(Localization.instance.Localize("$tv_msg_raid_start"));
+                }
+                else if (_known)
+                {
+                    Show(Localization.instance.Localize("$tv_msg_extracted") + RaidTimeSuffix());
+                }
 
-            _inRaid = inRaid;
-            _known = true;
+                _inRaid = inRaid;
+                _known = true;
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("RaidTracker.Update", e);
+            }
         }
 
         private static void Show(string text)

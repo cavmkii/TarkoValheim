@@ -1,9 +1,10 @@
-using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System;
 using HarmonyLib;
 using TarkoValheim.Content;
 using TarkoValheim.Stash;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Raid
@@ -54,96 +55,124 @@ namespace TarkoValheim.Raid
 
         private static void OnDeathPrefix(Player __instance)
         {
-            _diedInRaid = __instance == Player.m_localPlayer
-                && !Hideout.IsNear(__instance.transform.position);
+            try
+            {
+                _diedInRaid = __instance == Player.m_localPlayer
+                    && !Hideout.IsNear(__instance.transform.position);
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("DeathRules.OnDeathPrefix", e);
+            }
         }
 
         private static void TombPrefix(Player __instance)
         {
-            _secured = null;
-            if (!_diedInRaid || Plugin.RaidDeathRule.Value == DeathRule.Vanilla)
+            try
             {
-                return;
-            }
-
-            var inventory = __instance.GetInventory();
-            _secured = new List<Secured>();
-            foreach (var item in new List<ItemDrop.ItemData>(inventory.GetAllItems()))
-            {
-                if (!SecureContainer.Contains(inventory, item))
+                _secured = null;
+                if (!_diedInRaid || Plugin.RaidDeathRule.Value == DeathRule.Vanilla)
                 {
-                    continue;
+                    return;
                 }
 
-                if (item.m_equipped)
-                {
-                    __instance.UnequipItem(item, false);
-                }
-                _secured.Add(new Secured { Item = item, Pos = item.m_gridPos });
-                inventory.RemoveItem(item);
-            }
-
-            if (Plugin.RaidDeathRule.Value == DeathRule.LoseEverything)
-            {
-                // With the inventory empty, CreateTombStone has nothing to
-                // bury and makes no grave.
+                var inventory = __instance.GetInventory();
+                _secured = new List<Secured>();
                 foreach (var item in new List<ItemDrop.ItemData>(inventory.GetAllItems()))
                 {
+                    if (!SecureContainer.Contains(inventory, item))
+                    {
+                        continue;
+                    }
+
                     if (item.m_equipped)
                     {
                         __instance.UnequipItem(item, false);
                     }
+                    _secured.Add(new Secured { Item = item, Pos = item.m_gridPos });
                     inventory.RemoveItem(item);
                 }
+
+                if (Plugin.RaidDeathRule.Value == DeathRule.LoseEverything)
+                {
+                    // With the inventory empty, CreateTombStone has nothing to
+                    // bury and makes no grave.
+                    foreach (var item in new List<ItemDrop.ItemData>(inventory.GetAllItems()))
+                    {
+                        if (item.m_equipped)
+                        {
+                            __instance.UnequipItem(item, false);
+                        }
+                        inventory.RemoveItem(item);
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("DeathRules.TombPrefix", e);
             }
         }
 
         private static void TombPostfix(Player __instance)
         {
-            if (_secured == null)
+            try
             {
-                return;
-            }
-
-            var inventory = __instance.GetInventory();
-            foreach (var entry in _secured)
-            {
-                inventory.AddItem(entry.Item);
-
-                // AddItem places items top-first. Put them back where they
-                // were so they are still in the secure container next raid.
-                // Those cells were emptied in the prefix and AddItem only
-                // fills empty cells, so restoring cannot overlap anything.
-                if (inventory.GetAllItems().Contains(entry.Item))
+                if (_secured == null)
                 {
-                    entry.Item.m_gridPos = entry.Pos;
+                    return;
                 }
+
+                var inventory = __instance.GetInventory();
+                foreach (var entry in _secured)
+                {
+                    inventory.AddItem(entry.Item);
+
+                    // AddItem places items top-first. Put them back where they
+                    // were so they are still in the secure container next raid.
+                    // Those cells were emptied in the prefix and AddItem only
+                    // fills empty cells, so restoring cannot overlap anything.
+                    if (inventory.GetAllItems().Contains(entry.Item))
+                    {
+                        entry.Item.m_gridPos = entry.Pos;
+                    }
+                }
+                _secured = null;
             }
-            _secured = null;
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("DeathRules.TombPostfix", e);
+            }
         }
 
         private static void OnDeathPostfix(Player __instance)
         {
-            if (!_diedInRaid)
+            try
             {
-                return;
-            }
-            _diedInRaid = false;
-
-            if (Plugin.WipeSkillsOnRaidDeath.Value)
-            {
-                var skills = __instance.GetSkills();
-                foreach (Skills.SkillType type in Enum.GetValues(typeof(Skills.SkillType)))
+                if (!_diedInRaid)
                 {
-                    var name = type.ToString();
-                    if (name != "None" && name != "All")
+                    return;
+                }
+                _diedInRaid = false;
+
+                if (Plugin.WipeSkillsOnRaidDeath.Value)
+                {
+                    var skills = __instance.GetSkills();
+                    foreach (Skills.SkillType type in Enum.GetValues(typeof(Skills.SkillType)))
                     {
-                        skills.ResetSkill(type);
+                        var name = type.ToString();
+                        if (name != "None" && name != "All")
+                        {
+                            skills.ResetSkill(type);
+                        }
                     }
                 }
-            }
 
-            RaidTracker.OnKilledInRaid();
+                RaidTracker.OnKilledInRaid();
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("DeathRules.OnDeathPostfix", e);
+            }
         }
     }
 
