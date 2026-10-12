@@ -298,7 +298,7 @@ namespace TarkoValheim.Guns
                 Unload(player, gunItem);
             }
 
-            int n = Mathf.Min(amount, ammoStack.m_stack, gun.MagSize - Mag(gunItem));
+            int n = Mathf.Min(amount, ammoStack.m_stack, GunStats.Of(gun, gunItem).MagSize - Mag(gunItem));
             if (n <= 0)
             {
                 error = "$tv_err_mag_full";

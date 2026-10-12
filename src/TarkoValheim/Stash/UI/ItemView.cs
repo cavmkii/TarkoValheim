@@ -59,6 +59,10 @@ namespace TarkoValheim.Stash.UI
         public float Cell;
         public int Quick = -1;
 
+        // Weapon modding slot: which PartSlot, on which gun.
+        public int ModSlot = -1;
+        public ItemDrop.ItemData ModGun;
+
         // Scrolling grids: only the visible part counts.
         public RectTransform Clip;
     }

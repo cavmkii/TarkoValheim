@@ -31,6 +31,9 @@ namespace TarkoValheim.Guns
         private static readonly FieldInfo LookYaw = AccessTools.Field(typeof(Player), "m_lookYaw");
 
         public GunSpec Gun { get; private set; }
+
+        /// <summary>The held gun's effective stats (parts and skill applied).</summary>
+        public GunStats Stats { get; private set; }
         public ItemDrop.ItemData Item { get; private set; }
 
         /// <summary>0 = hip, 1 = fully aimed. Drives camera, spread and HUD.</summary>
@@ -76,6 +79,7 @@ namespace TarkoValheim.Guns
                 }
                 Gun = gun;
                 Item = gun != null ? item : null;
+                Stats = gun != null ? GunStats.Of(gun, Item, player) : null;
 
                 if (player != null)
                 {
@@ -166,15 +170,15 @@ namespace TarkoValheim.Guns
         /// <summary>Current cone of fire in degrees (for shots and the crosshair).</summary>
         public float CurrentSpread()
         {
-            if (Gun == null)
+            if (Gun == null || Stats == null)
             {
                 return 0f;
             }
 
-            float spread = Mathf.Lerp(Gun.HipSpread, Gun.AdsSpread, Ads) + _bloom;
+            float spread = Mathf.Lerp(Stats.HipSpread, Stats.AdsSpread, Ads) + _bloom;
             if (_speed > 1f)
             {
-                spread += Gun.HipSpread * 0.6f * (1f - Ads * 0.7f);
+                spread += Stats.HipSpread * 0.6f * (1f - Ads * 0.7f);
             }
             return spread;
         }
@@ -240,11 +244,12 @@ namespace TarkoValheim.Guns
             Vector3 origin = cam.position + forward * Mathf.Max(0f, Vector3.Dot(eye - cam.position, forward));
 
             float spread = CurrentSpread();
-            float damage = ammo.Damage * Plugin.GunDamage.Value;
+            float damage = ammo.Damage * Plugin.GunDamage.Value * Stats.DamageMult;
+            var skill = GunSkills.For(gun.Class);
             for (int i = 0; i < ammo.Pellets; i++)
             {
                 var dir = Spread(forward, spread + ammo.PelletSpread);
-                Ballistics.Fire(origin, dir * gun.Velocity * ammo.VelocityFactor, damage, player);
+                Ballistics.Fire(origin, dir * Stats.Velocity * ammo.VelocityFactor, damage, player, skill);
             }
 
             var hand = GameAccess.LeftHand(player);
@@ -252,7 +257,7 @@ namespace TarkoValheim.Guns
             item.m_shared.m_triggerEffect?.Create(muzzle, Quaternion.LookRotation(forward));
 
             ApplyRecoil(player, gun);
-            _bloom = Mathf.Min(_bloom + gun.RecoilUp * 0.12f, 3f);
+            _bloom = Mathf.Min(_bloom + Stats.RecoilUp * 0.12f, 3f);
 
             // Malfunction chance climbs with wear: rare when new, common when worn out.
             if (item.m_shared.m_useDurability && item.GetMaxDurability() > 0f)
@@ -291,10 +296,10 @@ namespace TarkoValheim.Guns
                 return;
             }
 
-            float skill = player.GetSkillFactor(Skills.SkillType.Crossbows);
-            float k = Plugin.RecoilMultiplier.Value * (1f - 0.4f * skill) * (1f - 0.3f * Ads);
-            float up = gun.RecoilUp * k;
-            float side = Random.Range(-1f, 1f) * gun.RecoilSide * k;
+            // Skill is already in Stats (GunStats.Of); aiming steadies a little more.
+            float k = Plugin.RecoilMultiplier.Value * (1f - 0.3f * Ads);
+            float up = Stats.RecoilUp * k;
+            float side = Random.Range(-1f, 1f) * Stats.RecoilSide * k;
 
             // Lower pitch looks up (Valheim subtracts mouse Y from it).
             LookPitch.SetValue(player, (float)LookPitch.GetValue(player) - up);
@@ -320,7 +325,7 @@ namespace TarkoValheim.Guns
                 return;
             }
 
-            bool full = GunState.Mag(item) >= gun.MagSize;
+            bool full = GunState.Mag(item) >= Stats.MagSize;
             var ammo = GunState.PickAmmo(player, gun, item, next: full);
             if (ammo == null)
             {
@@ -339,7 +344,7 @@ namespace TarkoValheim.Guns
 
             _reloadAmmo = ammo;
             _reloading = true;
-            _reloadEnd = Time.time + gun.ReloadTime;
+            _reloadEnd = Time.time + Stats.ReloadTime;
             Message(Localization.instance.Localize("$tv_msg_reloading") + " " + Localization.instance.Localize("$" + ammo.ToLowerInvariant()));
         }
 
@@ -365,7 +370,7 @@ namespace TarkoValheim.Guns
                 mag = 0;
             }
 
-            int want = gun.PerRoundReload ? 1 : gun.MagSize - mag;
+            int want = gun.PerRoundReload ? 1 : Stats.MagSize - mag;
             int got = GunState.TakeRounds(player, gun.Caliber, _reloadAmmo, want);
             if (got > 0)
             {
@@ -373,9 +378,9 @@ namespace TarkoValheim.Guns
                 GunState.SetMag(item, mag + got);
             }
 
-            if (gun.PerRoundReload && got > 0 && mag + got < gun.MagSize)
+            if (gun.PerRoundReload && got > 0 && mag + got < Stats.MagSize)
             {
-                _reloadEnd = Time.time + gun.ReloadTime;
+                _reloadEnd = Time.time + Stats.ReloadTime;
             }
             else
             {

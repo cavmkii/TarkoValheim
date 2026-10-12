@@ -20,6 +20,7 @@ namespace TarkoValheim.Guns
             public Vector3 Vel;
             public float Damage;
             public Player Owner;
+            public Skills.SkillType Skill;
             public float Life;
             public LineRenderer Tracer;
         }
@@ -30,7 +31,7 @@ namespace TarkoValheim.Guns
         private static Material _tracerMaterial;
         private static bool _tracerMaterialTried;
 
-        public static void Fire(Vector3 origin, Vector3 velocity, float damage, Player owner)
+        public static void Fire(Vector3 origin, Vector3 velocity, float damage, Player owner, Skills.SkillType skill)
         {
             if (_mask == 0)
             {
@@ -44,6 +45,7 @@ namespace TarkoValheim.Guns
                 Vel = velocity,
                 Damage = damage,
                 Owner = owner,
+                Skill = skill,
                 Tracer = Plugin.Tracers.Value ? MakeTracer() : null
             });
         }
@@ -133,7 +135,7 @@ namespace TarkoValheim.Guns
             hit.m_point = h.point;
             hit.m_dir = b.Vel.normalized;
             hit.m_pushForce = 4f;
-            hit.m_skill = Skills.SkillType.Crossbows;
+            hit.m_skill = b.Skill;
             Reflect.TrySetQuiet(hit, "m_hitCollider", h.collider);
             if (b.Owner != null)
             {
@@ -143,7 +145,7 @@ namespace TarkoValheim.Guns
 
             if (b.Owner != null && b.Owner == Player.m_localPlayer && destructible is Character)
             {
-                b.Owner.RaiseSkill(Skills.SkillType.Crossbows, 0.5f);
+                b.Owner.RaiseSkill(b.Skill, 1f);
             }
         }
 
