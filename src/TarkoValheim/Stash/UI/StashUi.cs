@@ -628,6 +628,14 @@ namespace TarkoValheim.Stash.UI
                 UiKit.Stretch(mag.rectTransform, 3f);
             }
 
+            var magSpec = Magazines.Find(Gear.PrefabName(item));
+            if (magSpec != null)
+            {
+                var ml = UiKit.Text(bg.transform, "Rounds", $"{GunState.Mag(item)}/{magSpec.Capacity}", 12,
+                    new Color(0.9f, 0.85f, 0.6f), TextAnchor.UpperLeft);
+                UiKit.Stretch(ml.rectTransform, 3f);
+            }
+
             var partSpec = GunParts.Find(Gear.PrefabName(item));
             if (partSpec != null)
             {
@@ -772,17 +780,23 @@ namespace TarkoValheim.Stash.UI
             var target = FindTarget(e.position, out var dest);
             var gunUnder = AmmoOntoGun(_dragView.Item, target, e.position);
             var draggedPart = GunParts.Find(Gear.PrefabName(_dragView.Item));
+            var draggedMag = Magazines.Find(Gear.PrefabName(_dragView.Item));
             if (gunUnder != null)
             {
                 var gun = Firearms.FindGun(Gear.PrefabName(gunUnder));
+                var magUnder = Magazines.Find(Gear.PrefabName(gunUnder));
                 var ammo = Firearms.FindAmmo(Gear.PrefabName(_dragView.Item));
-                bool ok = ammo != null ? gun.Caliber == ammo.Caliber : draggedPart != null && draggedPart.FitsGun(gun);
+                bool ok = ammo != null ? (gun != null ? gun.Caliber : magUnder.Caliber) == ammo.Caliber
+                    : draggedMag != null ? draggedMag.FitsGun(gun)
+                    : draggedPart != null && draggedPart.FitsGun(gun);
                 _ghostTint.color = ok ? UiKit.Good : UiKit.Bad;
             }
             else if (target != null && target.ModSlot >= 0)
             {
                 var gun = Firearms.FindGun(Gear.PrefabName(target.ModGun));
-                bool ok = draggedPart != null && (int)draggedPart.Slot == target.ModSlot && draggedPart.FitsGun(gun);
+                bool ok = target.ModSlot == (int)PartSlot.Magazine
+                    ? draggedMag != null && draggedMag.FitsGun(gun)
+                    : draggedPart != null && (int)draggedPart.Slot == target.ModSlot && draggedPart.FitsGun(gun);
                 _ghostTint.color = ok ? UiKit.Good : UiKit.Bad;
             }
             else if (target == null)
@@ -815,10 +829,13 @@ namespace TarkoValheim.Stash.UI
             CancelDrag();
 
             var part = GunParts.Find(Gear.PrefabName(item));
+            var magazine = Magazines.Find(Gear.PrefabName(item));
             if (gunUnder != null)
             {
                 string error;
-                bool ok = part != null
+                bool ok = magazine != null
+                    ? GunMods.InsertMag(Player.m_localPlayer, gunUnder, target.Inventory, item, from, out error)
+                    : part != null
                     ? GunMods.Install(Player.m_localPlayer, gunUnder, target.Inventory, item, from, out error)
                     : GunState.LoadFrom(Player.m_localPlayer, from, item, amount, gunUnder, out error);
                 if (ok)
@@ -834,7 +851,10 @@ namespace TarkoValheim.Stash.UI
             else if (target != null && target.ModSlot >= 0)
             {
                 string error = "$tv_err_part_doesnt_fit";
-                if (part != null && (int)part.Slot == target.ModSlot
+                bool magSlot = target.ModSlot == (int)PartSlot.Magazine;
+                if (magSlot && magazine != null
+                    ? GunMods.InsertMag(Player.m_localPlayer, target.ModGun, target.Inventory, item, from, out error)
+                    : !magSlot && part != null && (int)part.Slot == target.ModSlot
                     && GunMods.Install(Player.m_localPlayer, target.ModGun, target.Inventory, item, from, out error))
                 {
                     GameAccess.Changed(target.Inventory);
@@ -891,8 +911,9 @@ namespace TarkoValheim.Stash.UI
         private ItemDrop.ItemData AmmoOntoGun(ItemDrop.ItemData dragged, DropTarget target, Vector2 screen)
         {
             var name = Gear.PrefabName(dragged);
+            bool isAmmo = Firearms.FindAmmo(name) != null;
             if (target == null || target.Quick >= 0 || target.ModSlot >= 0
-                || (Firearms.FindAmmo(name) == null && GunParts.Find(name) == null))
+                || (!isAmmo && GunParts.Find(name) == null && Magazines.Find(name) == null))
             {
                 return null;
             }
@@ -911,7 +932,13 @@ namespace TarkoValheim.Stash.UI
                 under = target.Model.At(Mathf.FloorToInt(lp.x / target.Cell), Mathf.FloorToInt(-lp.y / target.Cell));
             }
 
-            return under != null && under != dragged && Firearms.FindGun(Gear.PrefabName(under)) != null ? under : null;
+            if (under == null || under == dragged)
+            {
+                return null;
+            }
+            var underName = Gear.PrefabName(under);
+            bool ok = Firearms.FindGun(underName) != null || (isAmmo && Magazines.Find(underName) != null);
+            return ok ? under : null;
         }
 
         private DropTarget FindTarget(Vector2 screen, out Dest dest)
@@ -1036,7 +1063,23 @@ namespace TarkoValheim.Stash.UI
                 entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_modify"),
                     () => OpenModPanel(item, from)));
             }
-            if (gun != null && own && GunState.Mag(item) > 0)
+            if (gun != null && !gun.PerRoundReload && GunMods.InstalledMag(item) != null)
+            {
+                entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_remove_mag"), () =>
+                {
+                    GunMods.EjectMag(Player.m_localPlayer, item);
+                    GameAccess.Changed(from);
+                }));
+            }
+            if (Magazines.Find(Gear.PrefabName(item)) != null && GunState.Mag(item) > 0)
+            {
+                entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_unload"), () =>
+                {
+                    GunState.Unload(Player.m_localPlayer, item);
+                    GameAccess.Changed(from);
+                }));
+            }
+            if (gun != null && gun.PerRoundReload && own && GunState.Mag(item) > 0)
             {
                 entries.Add(new KeyValuePair<string, Action>(UiKit.L("$tv_menu_unload"),
                     () => GunState.Unload(Player.m_localPlayer, item)));
@@ -1176,6 +1219,13 @@ namespace TarkoValheim.Stash.UI
             {
                 text += "\n" + PartSummary(partSpec);
             }
+            var magInfo = Magazines.Find(Gear.PrefabName(item));
+            if (magInfo != null)
+            {
+                text += $"\n{UiKit.L("$tv_ui_rounds")}: {GunState.Mag(item)}/{magInfo.Capacity} {UiKit.L(GunState.LoadedAmmoName(item))}";
+                text += $"\n{UiKit.L(magInfo.Caliber)}";
+                text += "\n" + UiKit.L("$tv_ui_mag_hint");
+            }
 
             _tooltipText.text = text;
             _tooltip.sizeDelta = new Vector2(360f, 16f + _tooltipText.preferredHeight);
@@ -1206,8 +1256,6 @@ namespace TarkoValheim.Stash.UI
             Add("$tv_stat_spread", part.Spread, true);
             Add("$tv_stat_ads", part.AdsSpread, true);
             Add("$tv_stat_recoil", part.Recoil, true);
-            Add("$tv_stat_reload", part.Reload, true);
-            Add("$tv_stat_mag", part.MagSize, false);
             if (part.Sight.HasValue)
             {
                 lines.Add(UiKit.L("$tv_sight_" + part.Sight.Value.ToString().ToLowerInvariant()));

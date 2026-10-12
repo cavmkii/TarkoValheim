@@ -78,10 +78,12 @@ namespace TarkoValheim.Stash.UI
             UiKit.Stretch(label.rectTransform, 3f);
 
             var part = GunMods.Installed(gunItem, slot);
-            if (part != null)
+            var mag = slot == PartSlot.Magazine ? GunMods.InstalledMag(gunItem) : null;
+            string installedId = part != null ? part.Id : mag != null ? mag.Id : null;
+            if (installedId != null)
             {
                 bg.color = new Color(0.3f, 0.22f, 0.16f, 0.95f);
-                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(part.Id) : null;
+                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(installedId) : null;
                 var drop = prefab != null ? prefab.GetComponent<ItemDrop>() : null;
                 if (drop != null)
                 {
@@ -90,8 +92,10 @@ namespace TarkoValheim.Stash.UI
                     icon.preserveAspect = true;
                     UiKit.Stretch(icon.rectTransform, 10f);
                 }
-                var name = UiKit.Text(bg.transform, "Part", UiKit.L("$" + part.Id.ToLowerInvariant()), 11,
-                    Color.white, TextAnchor.LowerCenter);
+                string caption = mag != null
+                    ? $"{GunState.Mag(gunItem)}/{mag.Capacity}"
+                    : UiKit.L("$" + installedId.ToLowerInvariant());
+                var name = UiKit.Text(bg.transform, "Part", caption, 11, Color.white, TextAnchor.LowerCenter);
                 UiKit.Stretch(name.rectTransform, 3f);
 
                 var view = bg.gameObject.AddComponent<ModSlotView>();
@@ -116,7 +120,7 @@ namespace TarkoValheim.Stash.UI
             Line(sb, "$tv_stat_ads", bare.AdsSpread, now.AdsSpread, "0.00", "°", false);
             Line(sb, "$tv_stat_recoil", bare.RecoilUp, now.RecoilUp, "0.00", "", false);
             Line(sb, "$tv_stat_reload", bare.ReloadTime, now.ReloadTime, "0.0", " s", false);
-            Line(sb, "$tv_stat_mag", bare.MagSize, now.MagSize, "0", "", true);
+            Line(sb, "$tv_stat_mag", now.MagSize, now.MagSize, "0", "", true);
             Line(sb, "$tv_stat_zoom", Zoom(bare.AdsFov), Zoom(now.AdsFov), "0.0", "x", true);
             sb.AppendLine();
             sb.Append($"{UiKit.L(gun.Caliber)}, {gun.Rpm} RPM\n{GunState.ModeNames(gun)}");

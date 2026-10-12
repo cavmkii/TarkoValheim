@@ -48,7 +48,11 @@ namespace TarkoValheim.Guns
                 string name = Localization.instance.Localize(item.m_shared.m_name);
                 string mode = GunState.Mode(item, gun).ToString().ToUpperInvariant();
                 string count;
-                if (Plugin.AmmoDisplay.Value == AmmoDisplayMode.Exact)
+                if (controller.Stats.MagSize <= 0)
+            {
+                count = Localization.instance.Localize("$tv_msg_no_mag");
+            }
+            else if (Plugin.AmmoDisplay.Value == AmmoDisplayMode.Exact)
                 {
                     count = $"{GunState.Mag(item)} / {controller.Stats.MagSize}";
                 }

@@ -50,6 +50,12 @@ namespace TarkoValheim.Stash
                     return new Vector2Int(gear.SizeW, gear.SizeH);
                 }
 
+                var mag = Magazines.Find(name);
+                if (mag != null)
+                {
+                    return new Vector2Int(mag.SizeW, mag.SizeH);
+                }
+
                 var part = GunParts.Find(name);
                 if (part != null)
                 {

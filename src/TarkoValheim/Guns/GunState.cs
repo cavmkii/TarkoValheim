@@ -273,32 +273,41 @@ namespace TarkoValheim.Guns
         }
 
         /// <summary>
-        /// Tarkov-style loading: drop a stack of rounds on a gun. Rounds go
-        /// straight into the magazine; a different round already loaded is
-        /// unloaded first. Returns false (with an error token) if it can't load.
+        /// Tarkov-style loading: drop a stack of rounds on a magazine, or on a
+        /// gun (its inserted magazine, or its tube). A different round already
+        /// loaded is unloaded first. Returns false (with an error token) if it can't.
         /// </summary>
         public static bool LoadFrom(Player player, Inventory from, ItemDrop.ItemData ammoStack, int amount,
-            ItemDrop.ItemData gunItem, out string error)
+            ItemDrop.ItemData target, out string error)
         {
             error = null;
-            var gun = Firearms.FindGun(Gear.PrefabName(gunItem));
             var ammo = Firearms.FindAmmo(Gear.PrefabName(ammoStack));
-            if (gun == null || ammo == null)
+            var gun = Firearms.FindGun(Gear.PrefabName(target));
+            var mag = Magazines.Find(Gear.PrefabName(target));
+            if (ammo == null || (gun == null && mag == null))
             {
                 return false;
             }
-            if (ammo.Caliber != gun.Caliber)
+
+            string caliber = gun != null ? gun.Caliber : mag.Caliber;
+            int capacity = gun != null ? GunStats.Of(gun, target).MagSize : mag.Capacity;
+            if (ammo.Caliber != caliber)
             {
                 error = "$tv_err_wrong_caliber";
                 return false;
             }
-
-            if (LoadedAmmo(gunItem) != ammo.Id && Mag(gunItem) > 0)
+            if (capacity <= 0)
             {
-                Unload(player, gunItem);
+                error = "$tv_msg_no_mag";
+                return false;
             }
 
-            int n = Mathf.Min(amount, ammoStack.m_stack, GunStats.Of(gun, gunItem).MagSize - Mag(gunItem));
+            if (LoadedAmmo(target) != ammo.Id && Mag(target) > 0)
+            {
+                Unload(player, target);
+            }
+
+            int n = Mathf.Min(amount, ammoStack.m_stack, capacity - Mag(target));
             if (n <= 0)
             {
                 error = "$tv_err_mag_full";
@@ -310,10 +319,34 @@ namespace TarkoValheim.Guns
             {
                 from.RemoveItem(ammoStack);
             }
-            SetLoadedAmmo(gunItem, ammo.Id);
-            SetMag(gunItem, Mag(gunItem) + n);
+            SetLoadedAmmo(target, ammo.Id);
+            SetMag(target, Mag(target) + n);
             GameAccess.Changed(from);
             return true;
+        }
+
+        /// <summary>
+        /// The loaded magazine to reload with: reachable (pockets, rig, secure
+        /// container; backpack if allowed), fits the gun, most rounds first.
+        /// </summary>
+        public static ItemDrop.ItemData BestMag(Player player, GunSpec gun, out bool anyLoaded)
+        {
+            anyLoaded = false;
+            ItemDrop.ItemData best = null;
+            foreach (var item in player.GetInventory().GetAllItems())
+            {
+                var mag = Magazines.Find(Gear.PrefabName(item));
+                if (mag == null || !mag.FitsGun(gun) || Mag(item) <= 0)
+                {
+                    continue;
+                }
+                anyLoaded = true;
+                if (Reachable(item) && (best == null || Mag(item) > Mag(best)))
+                {
+                    best = item;
+                }
+            }
+            return best;
         }
 
         /// <summary>True if the player carries rounds of this caliber anywhere,

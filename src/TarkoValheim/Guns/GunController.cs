@@ -19,9 +19,6 @@ namespace TarkoValheim.Guns
     {
         public static GunController Instance { get; private set; }
 
-        public const string ReloadButton = "TV_Reload";
-        public const string FireModeButton = "TV_FireMode";
-        public const string MagCheckButton = "TV_MagCheck";
 
         private const float DurabilityPerShot = 0.25f;
 
@@ -49,6 +46,7 @@ namespace TarkoValheim.Guns
         private bool _clearingJam;
         private float _reloadEnd;
         private string _reloadAmmo;
+        private ItemDrop.ItemData _reloadMag;
         private float _bloom;
         private bool _adsToggled;
         private Vector3 _lastPos;
@@ -120,19 +118,19 @@ namespace TarkoValheim.Guns
                     return;
                 }
 
-                if (ZInput.GetButtonDown(FireModeButton) && gun.Modes.Length > 1)
+                if (ZInput.GetKeyDown(Plugin.FireModeKey.Value) && gun.Modes.Length > 1)
                 {
                     var mode = GunState.CycleMode(Item, gun);
                     Message(mode.ToString().ToUpperInvariant());
                     StashUi.MarkDirty();
                 }
 
-                if (ZInput.GetButtonDown(MagCheckButton))
+                if (ZInput.GetKeyDown(Plugin.MagCheckKey.Value))
                 {
                     MagCheckUntil = Time.time + 3f;
                 }
 
-                if (ZInput.GetButtonDown(ReloadButton))
+                if (ZInput.GetKeyDown(Plugin.ReloadKey.Value))
                 {
                     StartReload(player, gun, Item);
                 }
@@ -200,7 +198,7 @@ namespace TarkoValheim.Guns
             {
                 _burstLeft = 0;
                 _nextShot = Time.time + 0.4f;
-                Message("$tv_msg_empty");
+                Message(Stats.MagSize <= 0 ? "$tv_msg_no_mag" : "$tv_msg_empty");
                 return;
             }
 
@@ -325,6 +323,12 @@ namespace TarkoValheim.Guns
                 return;
             }
 
+            if (!gun.PerRoundReload)
+            {
+                StartMagSwap(player, gun, item);
+                return;
+            }
+
             bool full = GunState.Mag(item) >= Stats.MagSize;
             var ammo = GunState.PickAmmo(player, gun, item, next: full);
             if (ammo == null)
@@ -363,6 +367,18 @@ namespace TarkoValheim.Guns
                 return;
             }
 
+            if (_reloadMag != null)
+            {
+                var inventory = player.GetInventory();
+                if (inventory.GetAllItems().Contains(_reloadMag))
+                {
+                    GunMods.InsertMag(player, item, inventory, _reloadMag, inventory, out _);
+                }
+                CancelReload();
+                StashUi.MarkDirty();
+                return;
+            }
+
             int mag = GunState.Mag(item);
             if (GunState.LoadedAmmo(item) != _reloadAmmo && mag > 0)
             {
@@ -389,8 +405,32 @@ namespace TarkoValheim.Guns
             StashUi.MarkDirty();
         }
 
+        // Detachable magazines: swap in the fullest reachable loaded magazine.
+        private void StartMagSwap(Player player, GunSpec gun, ItemDrop.ItemData item)
+        {
+            var best = GunState.BestMag(player, gun, out bool anyLoaded);
+            if (best == null)
+            {
+                Message(anyLoaded ? "$tv_msg_mag_unreachable" : "$tv_msg_no_loaded_mag");
+                return;
+            }
+
+            bool differentAmmo = GunState.LoadedAmmo(best) != GunState.LoadedAmmo(item);
+            if (GunState.Mag(best) <= GunState.Mag(item) && !differentAmmo && Stats.MagSize > 0)
+            {
+                Message("$tv_msg_no_better_mag");
+                return;
+            }
+
+            _reloadMag = best;
+            _reloading = true;
+            _reloadEnd = Time.time + Stats.ReloadTime;
+            Message("$tv_msg_reloading");
+        }
+
         private void CancelReload()
         {
+            _reloadMag = null;
             _reloading = false;
             _clearingJam = false;
         }

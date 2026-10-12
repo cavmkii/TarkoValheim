@@ -48,10 +48,9 @@ namespace TarkoValheim.Guns
 
             if (previous != null)
             {
-                GiveBack(player, previous.Id);
+                GiveBack(player, Reconciler.CreateItem(previous.Id, 1));
             }
 
-            TrimMagazine(player, gunItem, gun);
             GameAccess.Changed(from);
             if (gunInventory != from)
             {
@@ -62,35 +61,135 @@ namespace TarkoValheim.Guns
 
         public static void Remove(Player player, ItemDrop.ItemData gunItem, Inventory gunInventory, PartSlot slot)
         {
-            var gun = Firearms.FindGun(Gear.PrefabName(gunItem));
+            if (slot == PartSlot.Magazine)
+            {
+                EjectMag(player, gunItem);
+                GameAccess.Changed(gunInventory);
+                return;
+            }
+
             var part = Installed(gunItem, slot);
-            if (gun == null || part == null)
+            if (part == null)
             {
                 return;
             }
 
             Loc.Own(gunItem);
             gunItem.m_customData.Remove(Prefix + slot);
-            GiveBack(player, part.Id);
-            TrimMagazine(player, gunItem, gun);
+            GiveBack(player, Reconciler.CreateItem(part.Id, 1));
             GameAccess.Changed(gunInventory);
         }
 
-        // A smaller magazine than before: the extra rounds go back to the player.
-        private static void TrimMagazine(Player player, ItemDrop.ItemData gunItem, GunSpec gun)
+        // ------------------------------------------------------------------
+        // Magazines
+
+        private const string InitKey = "tv_init";
+
+        public static MagSpec InstalledMag(ItemDrop.ItemData gun)
         {
-            int capacity = GunStats.Of(gun, gunItem).MagSize;
-            int mag = GunState.Mag(gunItem);
-            if (mag > capacity)
+            return gun?.m_customData != null && gun.m_customData.TryGetValue(Prefix + PartSlot.Magazine, out var id)
+                ? Magazines.Find(id)
+                : null;
+        }
+
+        /// <summary>
+        /// A gun seen for the first time gets its standard magazine, empty.
+        /// Rounds an older version loaded straight into the gun stay in it.
+        /// </summary>
+        public static bool EnsureDefaultMag(ItemDrop.ItemData gunItem)
+        {
+            var gun = Firearms.FindGun(Gear.PrefabName(gunItem));
+            if (gun == null || gunItem.m_customData == null || gunItem.m_customData.ContainsKey(InitKey))
             {
-                GunState.SetMag(gunItem, capacity);
-                GunState.ReturnRounds(player, GunState.LoadedAmmo(gunItem), mag - capacity);
+                return false;
+            }
+
+            Loc.Own(gunItem);
+            gunItem.m_customData[InitKey] = "1";
+            var mag = Magazines.DefaultFor(gun);
+            if (mag != null && InstalledMag(gunItem) == null)
+            {
+                gunItem.m_customData[Prefix + PartSlot.Magazine] = mag;
+            }
+            return true;
+        }
+
+        /// <summary>Puts a magazine item into the gun. The magazine that was in
+        /// it comes back out as an item, keeping whatever rounds it had.</summary>
+        public static bool InsertMag(Player player, ItemDrop.ItemData gunItem, Inventory gunInventory,
+            ItemDrop.ItemData magItem, Inventory from, out string error)
+        {
+            error = null;
+            var gun = Firearms.FindGun(Gear.PrefabName(gunItem));
+            var mag = Magazines.Find(Gear.PrefabName(magItem));
+            if (gun == null || mag == null)
+            {
+                return false;
+            }
+            if (!mag.FitsGun(gun))
+            {
+                error = "$tv_err_mag_doesnt_fit";
+                return false;
+            }
+
+            int rounds = GunState.Mag(magItem);
+            string ammo = GunState.LoadedAmmo(magItem);
+
+            // Take the new one out first: that frees its space for the old one.
+            from.RemoveItem(magItem);
+            EjectMag(player, gunItem);
+
+            Loc.Own(gunItem);
+            gunItem.m_customData[Prefix + PartSlot.Magazine] = mag.Id;
+            GunState.SetMag(gunItem, rounds);
+            if (ammo != null)
+            {
+                GunState.SetLoadedAmmo(gunItem, ammo);
+            }
+
+            GameAccess.Changed(from);
+            if (gunInventory != from)
+            {
+                GameAccess.Changed(gunInventory);
+            }
+            return true;
+        }
+
+        /// <summary>Takes the magazine out of the gun and gives it back as an
+        /// item with its rounds. Without a magazine, loose rounds go back.</summary>
+        public static void EjectMag(Player player, ItemDrop.ItemData gunItem)
+        {
+            var current = InstalledMag(gunItem);
+            int rounds = GunState.Mag(gunItem);
+            string ammo = GunState.LoadedAmmo(gunItem);
+            GunState.SetMag(gunItem, 0);
+
+            if (current == null)
+            {
+                if (rounds > 0)
+                {
+                    GunState.ReturnRounds(player, ammo, rounds);
+                }
+                return;
+            }
+
+            Loc.Own(gunItem);
+            gunItem.m_customData.Remove(Prefix + PartSlot.Magazine);
+
+            var magItem = Reconciler.CreateItem(current.Id, 1);
+            if (magItem != null)
+            {
+                GunState.SetMag(magItem, rounds);
+                if (ammo != null && rounds > 0)
+                {
+                    GunState.SetLoadedAmmo(magItem, ammo);
+                }
+                GiveBack(player, magItem);
             }
         }
 
-        private static void GiveBack(Player player, string partId)
+        private static void GiveBack(Player player, ItemDrop.ItemData item)
         {
-            var item = Reconciler.CreateItem(partId, 1);
             if (item == null || player == null)
             {
                 return;

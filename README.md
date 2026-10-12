@@ -47,11 +47,16 @@ Firing no longer uses Valheim's crossbow attack:
 
 - **Bullets** travel at real speed with gravity drop. Hits go through
   Valheim's normal damage path.
-- **Magazines.** Rounds are tracked per gun and saved with it. In the
-  inventory, **drag rounds onto a gun** to load it, as in Tarkov. **R** reloads,
-  using only ammo in your pockets, rig or secure container (Tarkov rules,
-  configurable). The MP-133 and Mosin load one round at a time, and firing
-  interrupts the reload. Pressing R with a full magazine switches ammo type.
+- **Magazines.** Detachable magazines are items: drag rounds onto a magazine
+  to load it, keep spares in your rig or pockets, and **R** swaps the fullest
+  reachable one into your gun (the old one comes back with what was left in
+  it). New guns come with an empty standard magazine. Bigger magazines (AK 45-round,
+  95-round drum, SVD 20-round) are slower to swap. You can also drag rounds
+  straight onto a gun to top up the magazine in it. **R** also
+  clears malfunctions. Only pockets, rig and secure container count (Tarkov
+  rules, configurable). The MP-133 and Mosin have no detachable magazine:
+  R loads them one round at a time, and firing interrupts the reload. With
+  their tube full, R switches to the other ammo type.
 - **Fire modes:** **B** toggles them (the AK has auto and semi).
 - **Recoil** kicks the view up and sideways. The gun's class skill reduces it.
 - **Aim down sights:** hold **right mouse**. The camera moves to first person
@@ -96,8 +101,8 @@ the part off. Installed parts are stored on the gun, so they travel with it.
 - **Muzzles:** flash hider, muzzle brake, suppressor.
 - **Sights:** reflex (red dot), 4x scope, 8x scope. These change the sight
   picture and zoom.
-- **Magazines:** extended (+50%), drum (2.5x). Neither fits the tube-fed
-  shotgun or the Mosin.
+- **Magazine:** the slot shows the inserted magazine. Drop a magazine on it
+  to swap, right-click to take it out.
 
 Pistols take a barrel, muzzle and magazine only. All parts are crafted at the
 Hideout.
@@ -162,8 +167,9 @@ NuGet. CI runs this on every push.
 
 ## How much of this is verified
 
-**0.2.0 has not been run in the game.** The code compiles against Jotunn
-2.30.2's real API and against hand-written stand-ins for the game.
+**One tester has run builds up to 0.3.0 in game. This version (0.3.1) hasn't
+been run yet.** The code compiles against Jotunn 2.30.2's real API and
+against hand-written stand-ins for the game.
 
 Every game member it touches was checked against current open-source mods:
 EquipmentAndQuickSlots and EpicLoot by RandyKnapp (both updated September
