@@ -1,4 +1,5 @@
 using HarmonyLib;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Stash
@@ -59,44 +60,79 @@ namespace TarkoValheim.Stash
 
         private static void KeepHeight(Player __instance)
         {
-            var inventory = __instance.GetInventory();
-            if (inventory != null && inventory.m_height < InternalHeight)
+            try
             {
-                inventory.m_height = InternalHeight;
+                var inventory = __instance.GetInventory();
+                if (inventory != null && GameAccess.GetHeight(inventory) < InternalHeight)
+                {
+                    GameAccess.SetHeight(inventory, InternalHeight);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("InventoryHooks.KeepHeight", e);
             }
         }
 
         private static void KeepHeightHumanoid(Humanoid __instance)
         {
-            if (__instance is Player player)
+            try
             {
-                KeepHeight(player);
+                if (__instance is Player player)
+                {
+                    KeepHeight(player);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("InventoryHooks.KeepHeightHumanoid", e);
             }
         }
 
         private static void OnSpawned(Player __instance)
         {
-            KeepHeight(__instance);
-            if (__instance == Player.m_localPlayer)
+            try
             {
-                Reconciler.OnSpawned(__instance);
-                Reconciler.Run(__instance);
+                KeepHeight(__instance);
+                if (__instance == Player.m_localPlayer)
+                {
+                    Reconciler.OnSpawned(__instance);
+                    Reconciler.Run(__instance);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("InventoryHooks.OnSpawned", e);
             }
         }
 
         private static void GravePrefix(Inventory original)
         {
-            if (original != null && original.m_height < InternalHeight && StashOps.IsPlayerInventory(original))
+            try
             {
-                original.m_height = InternalHeight;
+                if (original != null && GameAccess.GetHeight(original) < InternalHeight && StashOps.IsPlayerInventory(original))
+                {
+                    GameAccess.SetHeight(original, InternalHeight);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("InventoryHooks.GravePrefix", e);
             }
         }
 
         private static void ChangedPostfix(Inventory __instance)
         {
-            if (!Reconciler.Busy && StashOps.IsPlayerInventory(__instance))
+            try
             {
-                Reconciler.Run(Player.m_localPlayer);
+                if (!Reconciler.Busy && StashOps.IsPlayerInventory(__instance))
+                {
+                    Reconciler.Run(Player.m_localPlayer);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("InventoryHooks.ChangedPostfix", e);
             }
         }
 
@@ -104,25 +140,32 @@ namespace TarkoValheim.Stash
         // item or its prefab, the second (when present) the stack size.
         private static void CanAddItemPostfix(Inventory __instance, object[] __args, ref bool __result)
         {
-            if (!__result || Reconciler.Busy || !Reconciler.Active || !StashOps.IsPlayerInventory(__instance)
-                || __args == null || __args.Length == 0)
+            try
             {
-                return;
-            }
+                if (!__result || Reconciler.Busy || !Reconciler.Active || !StashOps.IsPlayerInventory(__instance)
+                    || __args == null || __args.Length == 0)
+                {
+                    return;
+                }
 
-            var item = __args[0] as ItemDrop.ItemData;
-            if (item == null && __args[0] is GameObject prefab)
-            {
-                var drop = prefab.GetComponent<ItemDrop>();
-                item = drop != null ? drop.m_itemData : null;
-            }
-            if (item == null)
-            {
-                return;
-            }
+                var item = __args[0] as ItemDrop.ItemData;
+                if (item == null && __args[0] is GameObject prefab)
+                {
+                    var drop = prefab.GetComponent<ItemDrop>();
+                    item = drop != null ? drop.m_itemData : null;
+                }
+                if (item == null)
+                {
+                    return;
+                }
 
-            int stack = __args.Length > 1 && __args[1] is int s && s > 0 ? s : item.m_stack;
-            __result = Reconciler.CanFit(Player.m_localPlayer, item, stack);
+                int stack = __args.Length > 1 && __args[1] is int s && s > 0 ? s : item.m_stack;
+                __result = Reconciler.CanFit(Player.m_localPlayer, item, stack);
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("InventoryHooks.CanAddItemPostfix", e);
+            }
         }
     }
 }

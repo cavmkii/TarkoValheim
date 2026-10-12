@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using HarmonyLib;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Guns
@@ -27,10 +28,17 @@ namespace TarkoValheim.Guns
         // While a gun is out, R reloads and doesn't put the gun away.
         private static void GetButtonDownPostfix(string name, ref bool __result)
         {
-            if (__result && (name == "Hide" || name == "JoyHide") && Player.m_localPlayer != null
-                && HoldingGun(Player.m_localPlayer))
+            try
             {
-                __result = false;
+                if (__result && (name == "Hide" || name == "JoyHide") && Player.m_localPlayer != null
+                    && HoldingGun(Player.m_localPlayer))
+                {
+                    __result = false;
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("GunPatches.GetButtonDownPostfix", e);
             }
         }
 
@@ -57,19 +65,34 @@ namespace TarkoValheim.Guns
 
         private static bool StartAttackPrefix(Humanoid __instance, ref bool __result)
         {
-            if (HoldingGun(__instance))
+            try
             {
-                __result = false;
-                return false;
+                if (HoldingGun(__instance))
+                {
+                    __result = false;
+                    return false;
+                }
+                return true;
             }
-            return true;
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("GunPatches.StartAttackPrefix", e);
+                return true;
+            }
         }
 
         private static void IsBlockingPostfix(Humanoid __instance, ref bool __result)
         {
-            if (__result && HoldingGun(__instance))
+            try
             {
-                __result = false;
+                if (__result && HoldingGun(__instance))
+                {
+                    __result = false;
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("GunPatches.IsBlockingPostfix", e);
             }
         }
 
@@ -78,43 +101,51 @@ namespace TarkoValheim.Guns
         // model to look down yet, so a clear view beats the inside of a head).
         private static void UpdateCameraPostfix(GameCamera __instance)
         {
-            var controller = GunController.Instance;
-            var player = Player.m_localPlayer;
-            var camera = __instance.GetComponent<Camera>();
-            if (camera == null)
+            try
             {
-                return;
-            }
-
-            float ads = controller != null && controller.Gun != null ? controller.Ads : 0f;
-            if (ads <= 0f || player == null || player.m_eye == null)
-            {
-                if (_baseFov > 0f)
+                var controller = GunController.Instance;
+                var player = Player.m_localPlayer;
+                var camera = __instance.GetComponent<Camera>();
+                if (camera == null)
                 {
-                    camera.fieldOfView = _baseFov;
-                    _baseFov = -1f;
+                    return;
                 }
-                ShowPlayer();
-                return;
-            }
 
-            if (_baseFov < 0f)
-            {
-                _baseFov = camera.fieldOfView;
-            }
+                float ads = controller != null && controller.Gun != null ? controller.Ads : 0f;
+                var eyeTransform = player != null ? GameAccess.Eye(player) : null;
+                if (ads <= 0f || eyeTransform == null)
+                {
+                    if (_baseFov > 0f)
+                    {
+                        camera.fieldOfView = _baseFov;
+                        _baseFov = -1f;
+                    }
+                    ShowPlayer();
+                    return;
+                }
 
-            var t = __instance.transform;
-            var eye = player.m_eye.position + t.forward * 0.12f;
-            t.position = Vector3.Lerp(t.position, eye, ads);
-            camera.fieldOfView = Mathf.Lerp(_baseFov, controller.Gun.AdsFov, ads);
+                if (_baseFov < 0f)
+                {
+                    _baseFov = camera.fieldOfView;
+                }
 
-            if (ads > 0.6f)
-            {
-                HidePlayer(player);
+                var t = __instance.transform;
+                var eye = eyeTransform.position + t.forward * 0.12f;
+                t.position = Vector3.Lerp(t.position, eye, ads);
+                camera.fieldOfView = Mathf.Lerp(_baseFov, controller.Gun.AdsFov, ads);
+
+                if (ads > 0.6f)
+                {
+                    HidePlayer(player);
+                }
+                else
+                {
+                    ShowPlayer();
+                }
             }
-            else
+            catch (System.Exception e)
             {
-                ShowPlayer();
+                GameAccess.WarnOnce("GunPatches.UpdateCameraPostfix", e);
             }
         }
 

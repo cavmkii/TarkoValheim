@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using TarkoValheim.Content;
 using TarkoValheim.Stash;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Guns
@@ -216,7 +217,7 @@ namespace TarkoValheim.Guns
 
             if (taken > 0)
             {
-                inventory.Changed();
+                GameAccess.Changed(inventory);
             }
             return taken;
         }
@@ -268,7 +269,7 @@ namespace TarkoValheim.Guns
                 }
             }
 
-            inventory.Changed();
+            GameAccess.Changed(inventory);
         }
 
         public static void Unload(Player player, ItemDrop.ItemData gun)

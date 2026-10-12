@@ -2,6 +2,7 @@ using System.Reflection;
 using HarmonyLib;
 using TarkoValheim.Content;
 using TarkoValheim.Stash.UI;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Guns
@@ -61,97 +62,104 @@ namespace TarkoValheim.Guns
 
         private void Update()
         {
-            var player = Player.m_localPlayer;
-            var item = player != null && !player.IsDead() ? player.GetCurrentWeapon() : null;
-            var gun = item != null ? Firearms.FindGun(Content.Gear.PrefabName(item)) : null;
-
-            if (gun != Gun || item != Item)
+            try
             {
-                CancelReload();
-                _burstLeft = 0;
-                _adsToggled = false;
-            }
-            Gun = gun;
-            Item = gun != null ? item : null;
+                var player = Player.m_localPlayer;
+                var item = player != null && !player.IsDead() ? player.GetCurrentWeapon() : null;
+                var gun = item != null ? Firearms.FindGun(Content.Gear.PrefabName(item)) : null;
 
-            if (player != null)
-            {
-                float dt = Mathf.Max(Time.deltaTime, 0.0001f);
-                _speed = Mathf.Lerp(_speed, (player.transform.position - _lastPos).magnitude / dt, 0.2f);
-                _lastPos = player.transform.position;
-            }
-
-            bool input = gun != null && player.TakeInput() && !player.InPlaceMode();
-
-            bool aim;
-            if (Plugin.AdsToggle.Value)
-            {
-                if (input && ZInput.GetButtonDown("Block"))
+                if (gun != Gun || item != Item)
                 {
-                    _adsToggled = !_adsToggled;
+                    CancelReload();
+                    _burstLeft = 0;
+                    _adsToggled = false;
                 }
-                aim = input && _adsToggled;
+                Gun = gun;
+                Item = gun != null ? item : null;
+
+                if (player != null)
+                {
+                    float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+                    _speed = Mathf.Lerp(_speed, (player.transform.position - _lastPos).magnitude / dt, 0.2f);
+                    _lastPos = player.transform.position;
+                }
+
+                bool input = gun != null && GameAccess.TakeInput(player) && !player.InPlaceMode();
+
+                bool aim;
+                if (Plugin.AdsToggle.Value)
+                {
+                    if (input && ZInput.GetButtonDown("Block"))
+                    {
+                        _adsToggled = !_adsToggled;
+                    }
+                    aim = input && _adsToggled;
+                }
+                else
+                {
+                    aim = input && ZInput.GetButton("Block");
+                }
+
+                Ads = Mathf.MoveTowards(Ads, aim ? 1f : 0f, Time.deltaTime / 0.15f);
+                _bloom = Mathf.MoveTowards(_bloom, 0f, Time.deltaTime * 3f);
+
+                if (gun == null)
+                {
+                    return;
+                }
+
+                UpdateReload(player, gun, Item);
+
+                if (!input)
+                {
+                    _burstLeft = 0;
+                    return;
+                }
+
+                if (ZInput.GetButtonDown(FireModeButton) && gun.Modes.Length > 1)
+                {
+                    var mode = GunState.CycleMode(Item, gun);
+                    Message(mode.ToString().ToUpperInvariant());
+                    StashUi.MarkDirty();
+                }
+
+                if (ZInput.GetButtonDown(MagCheckButton))
+                {
+                    MagCheckUntil = Time.time + 3f;
+                }
+
+                if (ZInput.GetButtonDown(ReloadButton))
+                {
+                    StartReload(player, gun, Item);
+                }
+
+                var fireMode = GunState.Mode(Item, gun);
+                bool pressed = ZInput.GetButtonDown("Attack");
+                bool held = ZInput.GetButton("Attack");
+
+                // A tube-fed gun stops loading as soon as you pull the trigger.
+                if (_reloading && gun.PerRoundReload && pressed && !_clearingJam && GunState.Mag(Item) > 0)
+                {
+                    CancelReload();
+                }
+
+                if (fireMode == FireMode.Burst && pressed && _burstLeft == 0)
+                {
+                    _burstLeft = 3;
+                }
+
+                bool wantShot = fireMode == FireMode.Auto ? held
+                    : fireMode == FireMode.Single ? pressed
+                    : _burstLeft > 0;
+
+                if (wantShot && !_reloading && Time.time >= _nextShot)
+                {
+                    Fire(player, gun, Item);
+                }
             }
-            else
+            catch (System.Exception e)
             {
-                aim = input && ZInput.GetButton("Block");
-            }
-
-            Ads = Mathf.MoveTowards(Ads, aim ? 1f : 0f, Time.deltaTime / 0.15f);
-            _bloom = Mathf.MoveTowards(_bloom, 0f, Time.deltaTime * 3f);
-
-            if (gun == null)
-            {
-                return;
-            }
-
-            UpdateReload(player, gun, Item);
-
-            if (!input)
-            {
-                _burstLeft = 0;
-                return;
-            }
-
-            if (ZInput.GetButtonDown(FireModeButton) && gun.Modes.Length > 1)
-            {
-                var mode = GunState.CycleMode(Item, gun);
-                Message(mode.ToString().ToUpperInvariant());
-                StashUi.MarkDirty();
-            }
-
-            if (ZInput.GetButtonDown(MagCheckButton))
-            {
-                MagCheckUntil = Time.time + 3f;
-            }
-
-            if (ZInput.GetButtonDown(ReloadButton))
-            {
-                StartReload(player, gun, Item);
-            }
-
-            var fireMode = GunState.Mode(Item, gun);
-            bool pressed = ZInput.GetButtonDown("Attack");
-            bool held = ZInput.GetButton("Attack");
-
-            // A tube-fed gun stops loading as soon as you pull the trigger.
-            if (_reloading && gun.PerRoundReload && pressed && !_clearingJam && GunState.Mag(Item) > 0)
-            {
-                CancelReload();
-            }
-
-            if (fireMode == FireMode.Burst && pressed && _burstLeft == 0)
-            {
-                _burstLeft = 3;
-            }
-
-            bool wantShot = fireMode == FireMode.Auto ? held
-                : fireMode == FireMode.Single ? pressed
-                : _burstLeft > 0;
-
-            if (wantShot && !_reloading && Time.time >= _nextShot)
-            {
-                Fire(player, gun, Item);
+                GameAccess.WarnOnce("GunController.Update", e);
             }
         }
 
@@ -227,7 +235,8 @@ namespace TarkoValheim.Guns
             // Shoot from the point on the camera ray level with the player's
             // eyes, so third-person shots don't start behind the character.
             Vector3 forward = cam.forward;
-            Vector3 eye = player.m_eye != null ? player.m_eye.position : player.transform.position + Vector3.up * 1.6f;
+            var eyeTransform = GameAccess.Eye(player);
+            Vector3 eye = eyeTransform != null ? eyeTransform.position : player.transform.position + Vector3.up * 1.6f;
             Vector3 origin = cam.position + forward * Mathf.Max(0f, Vector3.Dot(eye - cam.position, forward));
 
             float spread = CurrentSpread();
@@ -238,9 +247,8 @@ namespace TarkoValheim.Guns
                 Ballistics.Fire(origin, dir * gun.Velocity * ammo.VelocityFactor, damage, player);
             }
 
-            var muzzle = player.m_visEquipment != null && player.m_visEquipment.m_leftHand != null
-                ? player.m_visEquipment.m_leftHand.position
-                : eye;
+            var hand = GameAccess.LeftHand(player);
+            var muzzle = hand != null ? hand.position : eye;
             item.m_shared.m_triggerEffect?.Create(muzzle, Quaternion.LookRotation(forward));
 
             ApplyRecoil(player, gun);

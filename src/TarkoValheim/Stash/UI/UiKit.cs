@@ -1,7 +1,7 @@
 using System;
 using Jotunn.Managers;
-using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine;
 
 namespace TarkoValheim.Stash.UI
 {

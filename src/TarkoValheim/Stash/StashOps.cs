@@ -1,4 +1,5 @@
 using TarkoValheim.Content;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Stash
@@ -195,12 +196,12 @@ namespace TarkoValheim.Stash
                     {
                         from.RemoveItem(item);
                     }
-                    from.Changed();
+                    GameAccess.Changed(from);
                 }
                 else
                 {
                     to.MoveItemToThis(from, item, n, stackTarget.m_gridPos.x, stackTarget.m_gridPos.y);
-                    to.Changed();
+                    GameAccess.Changed(to);
                 }
                 return true;
             }
@@ -208,7 +209,7 @@ namespace TarkoValheim.Stash
             if (from == to && amount == item.m_stack)
             {
                 Loc.Write(item, dest.Loc);
-                from.Changed();
+                GameAccess.Changed(from);
                 return true;
             }
 
@@ -225,12 +226,12 @@ namespace TarkoValheim.Stash
                 piece.m_stack = amount;
                 piece.m_customData.Remove("tv_quick");
                 Loc.Write(piece, dest.Loc);
-                if (!to.AddItem(piece, pos))
+                if (!GameAccess.AddItemAt(to, piece, pos))
                 {
                     return Fail("$tv_err_full");
                 }
                 item.m_stack -= amount;
-                to.Changed();
+                GameAccess.Changed(to);
                 return true;
             }
 
@@ -261,8 +262,8 @@ namespace TarkoValheim.Stash
 
             Loc.Write(moved, loc);
             Loc.SetQuickSlot(moved, -1);
-            to.Changed();
-            from.Changed();
+            GameAccess.Changed(to);
+            GameAccess.Changed(from);
             return true;
         }
 

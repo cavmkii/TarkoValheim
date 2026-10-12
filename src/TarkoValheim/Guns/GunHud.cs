@@ -1,7 +1,8 @@
 using TarkoValheim.Content;
 using TarkoValheim.Stash.UI;
-using UnityEngine;
+using TarkoValheim.Util;
 using UnityEngine.UI;
+using UnityEngine;
 
 namespace TarkoValheim.Guns
 {
@@ -20,57 +21,64 @@ namespace TarkoValheim.Guns
 
         private void LateUpdate()
         {
-            var controller = GunController.Instance;
-            var player = Player.m_localPlayer;
-            bool show = controller != null && controller.Gun != null && player != null && !player.IsDead()
-                && Hud.instance != null && !InventoryGui.IsVisible();
-
-            SetVanillaCrosshair(!show);
-
-            if (!show)
+            try
             {
-                if (_canvasGo != null)
+                var controller = GunController.Instance;
+                var player = Player.m_localPlayer;
+                bool show = controller != null && controller.Gun != null && player != null && !player.IsDead()
+                    && Hud.instance != null && !InventoryGui.IsVisible();
+
+                SetVanillaCrosshair(!show);
+
+                if (!show)
                 {
-                    _canvasGo.SetActive(false);
+                    if (_canvasGo != null)
+                    {
+                        _canvasGo.SetActive(false);
+                    }
+                    return;
                 }
-                return;
+
+                EnsureCanvas();
+                _canvasGo.SetActive(true);
+
+                var gun = controller.Gun;
+                var item = controller.Item;
+                string name = Localization.instance.Localize(item.m_shared.m_name);
+                string mode = GunState.Mode(item, gun).ToString().ToUpperInvariant();
+                string count;
+                if (Plugin.AmmoDisplay.Value == AmmoDisplayMode.Exact)
+                {
+                    count = $"{GunState.Mag(item)} / {gun.MagSize}";
+                }
+                else
+                {
+                    count = Time.time < controller.MagCheckUntil ? Estimate(GunState.Mag(item), gun.MagSize) : "";
+                }
+
+                string ammo = Localization.instance.Localize(GunState.LoadedAmmoName(item));
+                string status = GunState.Jammed(item) ? "\n<color=#ff6050>" + Localization.instance.Localize("$tv_msg_jammed") + "</color>"
+                    : controller.Reloading ? "\n" + Localization.instance.Localize("$tv_msg_reloading") : "";
+                _ammo.text = $"<b>{name}</b>  [{mode}]\n<size=26>{count}</size>  {ammo}{status}";
+
+                // Crosshair radius from the cone of fire and the camera's FOV.
+                var cam = GameCamera.instance != null ? GameCamera.instance.GetComponent<Camera>() : null;
+                float fov = cam != null ? cam.fieldOfView : 65f;
+                float radius = 540f * Mathf.Tan(controller.CurrentSpread() * Mathf.Deg2Rad) / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad);
+                radius = Mathf.Clamp(radius, 4f, 200f);
+                bool ticks = Plugin.Crosshair.Value && controller.Ads < 0.9f;
+                for (int i = 0; i < 4; i++)
+                {
+                    _ticks[i].gameObject.SetActive(ticks);
+                    var dir = i == 0 ? Vector2.up : i == 1 ? Vector2.down : i == 2 ? Vector2.left : Vector2.right;
+                    _ticks[i].anchoredPosition = dir * (radius + 5f);
+                }
+                _dot.gameObject.SetActive(Plugin.Crosshair.Value);
             }
-
-            EnsureCanvas();
-            _canvasGo.SetActive(true);
-
-            var gun = controller.Gun;
-            var item = controller.Item;
-            string name = Localization.instance.Localize(item.m_shared.m_name);
-            string mode = GunState.Mode(item, gun).ToString().ToUpperInvariant();
-            string count;
-            if (Plugin.AmmoDisplay.Value == AmmoDisplayMode.Exact)
+            catch (System.Exception e)
             {
-                count = $"{GunState.Mag(item)} / {gun.MagSize}";
+                GameAccess.WarnOnce("GunHud.LateUpdate", e);
             }
-            else
-            {
-                count = Time.time < controller.MagCheckUntil ? Estimate(GunState.Mag(item), gun.MagSize) : "";
-            }
-
-            string ammo = Localization.instance.Localize(GunState.LoadedAmmoName(item));
-            string status = GunState.Jammed(item) ? "\n<color=#ff6050>" + Localization.instance.Localize("$tv_msg_jammed") + "</color>"
-                : controller.Reloading ? "\n" + Localization.instance.Localize("$tv_msg_reloading") : "";
-            _ammo.text = $"<b>{name}</b>  [{mode}]\n<size=26>{count}</size>  {ammo}{status}";
-
-            // Crosshair radius from the cone of fire and the camera's FOV.
-            var cam = GameCamera.instance != null ? GameCamera.instance.GetComponent<Camera>() : null;
-            float fov = cam != null ? cam.fieldOfView : 65f;
-            float radius = 540f * Mathf.Tan(controller.CurrentSpread() * Mathf.Deg2Rad) / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad);
-            radius = Mathf.Clamp(radius, 4f, 200f);
-            bool ticks = Plugin.Crosshair.Value && controller.Ads < 0.9f;
-            for (int i = 0; i < 4; i++)
-            {
-                _ticks[i].gameObject.SetActive(ticks);
-                var dir = i == 0 ? Vector2.up : i == 1 ? Vector2.down : i == 2 ? Vector2.left : Vector2.right;
-                _ticks[i].anchoredPosition = dir * (radius + 5f);
-            }
-            _dot.gameObject.SetActive(Plugin.Crosshair.Value);
         }
 
         private static string Estimate(int mag, int size)
@@ -86,20 +94,20 @@ namespace TarkoValheim.Guns
 
         private void SetVanillaCrosshair(bool visible)
         {
-            var hud = Hud.instance;
-            if (hud == null || hud.m_crosshair == null)
+            var crosshair = Hud.instance != null ? GameAccess.Crosshair(Hud.instance) : null;
+            if (crosshair == null)
             {
                 return;
             }
 
             if (!visible)
             {
-                hud.m_crosshair.enabled = false;
+                crosshair.enabled = false;
                 _hidVanillaCrosshair = true;
             }
             else if (_hidVanillaCrosshair)
             {
-                hud.m_crosshair.enabled = true;
+                crosshair.enabled = true;
                 _hidVanillaCrosshair = false;
             }
         }

@@ -50,40 +50,47 @@ namespace TarkoValheim.Guns
 
         private void Update()
         {
-            float dt = Time.deltaTime;
-            if (dt <= 0f || Live.Count == 0)
+            try
             {
-                return;
+                float dt = Time.deltaTime;
+                if (dt <= 0f || Live.Count == 0)
+                {
+                    return;
+                }
+
+                var gravity = Physics.gravity;
+                for (int i = Live.Count - 1; i >= 0; i--)
+                {
+                    var b = Live[i];
+                    var next = b.Pos + b.Vel * dt + 0.5f * gravity * dt * dt;
+                    var step = next - b.Pos;
+                    float length = step.magnitude;
+
+                    if (length > 0f && Cast(b, step / length, length, out var hit))
+                    {
+                        Impact(b, hit);
+                        Retire(i);
+                        continue;
+                    }
+
+                    if (b.Tracer != null)
+                    {
+                        b.Tracer.SetPosition(0, b.Pos);
+                        b.Tracer.SetPosition(1, next);
+                    }
+
+                    b.Pos = next;
+                    b.Vel += gravity * dt;
+                    b.Life += dt;
+                    if (b.Life > MaxLife)
+                    {
+                        Retire(i);
+                    }
+                }
             }
-
-            var gravity = Physics.gravity;
-            for (int i = Live.Count - 1; i >= 0; i--)
+            catch (System.Exception e)
             {
-                var b = Live[i];
-                var next = b.Pos + b.Vel * dt + 0.5f * gravity * dt * dt;
-                var step = next - b.Pos;
-                float length = step.magnitude;
-
-                if (length > 0f && Cast(b, step / length, length, out var hit))
-                {
-                    Impact(b, hit);
-                    Retire(i);
-                    continue;
-                }
-
-                if (b.Tracer != null)
-                {
-                    b.Tracer.SetPosition(0, b.Pos);
-                    b.Tracer.SetPosition(1, next);
-                }
-
-                b.Pos = next;
-                b.Vel += gravity * dt;
-                b.Life += dt;
-                if (b.Life > MaxLife)
-                {
-                    Retire(i);
-                }
+                GameAccess.WarnOnce("Ballistics.Update", e);
             }
         }
 
@@ -114,7 +121,7 @@ namespace TarkoValheim.Guns
 
         private static void Impact(Bullet b, RaycastHit h)
         {
-            var target = Projectile.FindHitObject(h.collider);
+            var target = GameAccess.FindHitObject(h.collider);
             var destructible = target != null ? target.GetComponent<IDestructible>() : null;
             if (destructible == null)
             {

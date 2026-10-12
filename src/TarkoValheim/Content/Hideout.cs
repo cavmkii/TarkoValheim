@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Jotunn.Configs;
 using Jotunn.Entities;
 using Jotunn.Managers;
+using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Content
@@ -44,7 +45,7 @@ namespace TarkoValheim.Content
             var station = piece.PiecePrefab.GetComponent<CraftingStation>();
             if (station != null)
             {
-                station.m_name = "$tv_hideout";
+                GameAccess.SetStationName(station, "$tv_hideout");
             }
 
             piece.PiecePrefab.AddComponent<HideoutMarker>();
@@ -80,9 +81,7 @@ namespace TarkoValheim.Content
             var container = piece.PiecePrefab.GetComponent<Container>();
             if (container != null)
             {
-                container.m_name = "$tv_stash";
-                container.m_width = 10;
-                container.m_height = 12;
+                GameAccess.SetContainer(container, "$tv_stash", 10, 12);
             }
 
             PieceManager.Instance.AddPiece(piece);
