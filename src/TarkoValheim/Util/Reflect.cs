@@ -26,5 +26,18 @@ namespace TarkoValheim.Util
             info.SetValue(target, value);
             return true;
         }
+
+        /// <summary>As <see cref="TrySet"/>, without the warning; for optional fields.</summary>
+        public static bool TrySetQuiet(object target, string field, object value)
+        {
+            var info = target != null ? AccessTools.Field(target.GetType(), field) : null;
+            if (info == null)
+            {
+                return false;
+            }
+
+            info.SetValue(target, value);
+            return true;
+        }
     }
 }
