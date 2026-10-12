@@ -9,7 +9,7 @@ namespace TarkoValheim.Content
 {
     /// <summary>
     /// The Hideout workbench is a cloned workbench with its own station name.
-    /// Every gun and round is crafted here, and the area around any built
+    /// Gear, rigs and meds are crafted here, and the area around any built
     /// Hideout counts as out of raid.
     /// </summary>
     internal static class Hideout

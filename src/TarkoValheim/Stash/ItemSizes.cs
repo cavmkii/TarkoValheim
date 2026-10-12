@@ -38,28 +38,22 @@ namespace TarkoValheim.Stash
                     return o;
                 }
 
-                var gun = Firearms.FindGun(name);
-                if (gun != null)
-                {
-                    return new Vector2Int(gun.SizeW, gun.SizeH);
-                }
-
                 var gear = Gear.Find(item);
                 if (gear != null)
                 {
                     return new Vector2Int(gear.SizeW, gear.SizeH);
                 }
 
-                var mag = Magazines.Find(name);
-                if (mag != null)
-                {
-                    return new Vector2Int(mag.SizeW, mag.SizeH);
-                }
-
-                var part = GunParts.Find(name);
+                var part = WeaponParts.Find(name);
                 if (part != null)
                 {
                     return new Vector2Int(part.SizeW, part.SizeH);
+                }
+
+                var med = Health.Meds.Find(name);
+                if (med != null)
+                {
+                    return new Vector2Int(med.SizeW, med.SizeH);
                 }
 
                 if (Named.TryGetValue(name, out var n))

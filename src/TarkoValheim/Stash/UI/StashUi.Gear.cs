@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TarkoValheim.Content;
-using TarkoValheim.Guns;
+using TarkoValheim.Health;
+using TarkoValheim.Modding;
 using TarkoValheim.Util;
 using UnityEngine.UI;
 using UnityEngine;
@@ -12,7 +13,7 @@ namespace TarkoValheim.Stash.UI
         All,
         Weapons,
         Ammo,
-        Mods,
+        Parts,
         Gear,
         Armor,
         Food,
@@ -261,12 +262,22 @@ namespace TarkoValheim.Stash.UI
         {
             var col = Column("Right", x, w);
 
-            if (_modGun != null)
+            if (_modWeapon != null)
             {
-                var panel = ModPanel.Build(this, col, player, _modGun, _modInventory, _targets);
+                var panel = ModPanel.Build(this, col, player, _modWeapon, _modInventory, _targets);
                 var size = panel.sizeDelta;
                 UiKit.TopLeft(panel, 0f, 0f, size.x, size.y);
                 FitInto(col, size.x, size.y, w, ColumnH);
+                return;
+            }
+
+            // In a hideout: every chest in range, as one stash.
+            var stash = HideoutStash.Containers(player, container);
+            if (stash.Count > 0)
+            {
+                float stashW;
+                float stashH = BuildStash(col, stash, container, w, out stashW);
+                FitInto(col, stashW, stashH, w, ColumnH);
                 return;
             }
 
@@ -294,21 +305,8 @@ namespace TarkoValheim.Stash.UI
 
             UiKit.Header(col, UiKit.L(GameAccess.ContainerTitle(container)).ToUpperInvariant(), Capacity(cl.Grid), 0f, 0f, naturalW);
 
-            // Category filter strip: non-matching items are dimmed, not hidden,
-            // so the grid keeps its shape.
-            var filters = (ItemFilter[])System.Enum.GetValues(typeof(ItemFilter));
             float takeW = 110f;
-            float fw = Mathf.Floor((naturalW - takeW - 10f - (filters.Length - 1) * 3f) / filters.Length);
-            for (int i = 0; i < filters.Length; i++)
-            {
-                var f = filters[i];
-                var b = UiKit.Button(col, "Filter_" + f, UiKit.L("$tv_filter_" + f.ToString().ToLowerInvariant()), () =>
-                {
-                    _filter = f;
-                    MarkDirty();
-                }, _filter == f, 11);
-                UiKit.TopLeft((RectTransform)b.transform, i * (fw + 3f), 28f, fw, 24f);
-            }
+            FilterStrip(col, naturalW - takeW - 10f, 28f);
             var takeAll = UiKit.Button(col, "TakeAll", UiKit.L("$tv_ui_take_all"), () =>
             {
                 StashOps.TakeAll(inventory);
@@ -337,6 +335,97 @@ namespace TarkoValheim.Stash.UI
                 bottom += Mathf.CeilToInt(cl.Unplaced.Count / (float)perRow) * cell + 4f;
             }
             return bottom;
+        }
+
+        // Category filter strip: non-matching items are dimmed, not hidden,
+        // so the grids keep their shape.
+        private void FilterStrip(RectTransform col, float width, float y)
+        {
+            var filters = (ItemFilter[])System.Enum.GetValues(typeof(ItemFilter));
+            float fw = Mathf.Floor((width - (filters.Length - 1) * 3f) / filters.Length);
+            for (int i = 0; i < filters.Length; i++)
+            {
+                var f = filters[i];
+                var b = UiKit.Button(col, "Filter_" + f, UiKit.L("$tv_filter_" + f.ToString().ToLowerInvariant()), () =>
+                {
+                    _filter = f;
+                    MarkDirty();
+                }, _filter == f, 11);
+                UiKit.TopLeft((RectTransform)b.transform, i * (fw + 3f), y, fw, 24f);
+            }
+        }
+
+        /// <summary>The hideout stash: every chest in range, one section each,
+        /// in one scrolling list. The chest you opened comes first.</summary>
+        private float BuildStash(RectTransform col, List<Container> containers, Container open, float w, out float naturalW)
+        {
+            float cell = Plugin.CellSize.Value;
+            HideoutStash.Claim(containers);
+
+            var layouts = new List<ContainerLayout>();
+            float maxGridW = 0f;
+            int used = 0, total = 0;
+            foreach (var c in containers)
+            {
+                var cl = ContainerLayout.Build(c.GetInventory());
+                layouts.Add(cl);
+                maxGridW = Mathf.Max(maxGridW, cl.Grid.W * cell);
+                var cap = Capacity(cl.Grid).Split('/');
+                used += int.Parse(cap[0]);
+                total += int.Parse(cap[1]);
+            }
+            naturalW = Mathf.Max(w, maxGridW);
+
+            UiKit.Header(col, UiKit.L("$tv_ui_stash") + $"  <color=#8a8a84>{string.Format(UiKit.L("$tv_ui_stash_count"), containers.Count)}</color>",
+                $"{used}/{total}", 0f, 0f, naturalW);
+            FilterStrip(col, naturalW, 28f);
+
+            // Content height first, for the scroll view.
+            float contentH = 0f;
+            foreach (var cl in layouts)
+            {
+                contentH += 28f + cl.Grid.H * cell + 14f;
+                if (cl.Unplaced.Count > 0)
+                {
+                    int perRow = Mathf.Max(1, Mathf.FloorToInt(cl.Grid.W * cell / cell));
+                    contentH += 24f + Mathf.CeilToInt(cl.Unplaced.Count / (float)perRow) * cell;
+                }
+            }
+
+            float top = 60f;
+            float viewH = Mathf.Min(contentH, ColumnH - top);
+            var content = ScrollArea(col, "stash", 0f, top, naturalW, viewH, contentH, out var viewport);
+
+            float y = 0f;
+            for (int k = 0; k < containers.Count; k++)
+            {
+                var c = containers[k];
+                var cl = layouts[k];
+                var inventory = c.GetInventory();
+                string title = UiKit.L(GameAccess.ContainerTitle(c)).ToUpperInvariant();
+                if (c == open)
+                {
+                    title += "  <color=#e39b3b>" + UiKit.L("$tv_ui_opened") + "</color>";
+                }
+                UiKit.Header(content, title, Capacity(cl.Grid), 0f, y, naturalW);
+                y += 26f;
+                DrawGrid(content, cl.Grid, inventory, 0f, y, UiKit.CellBg, viewport, true);
+                y += cl.Grid.H * cell + 14f;
+
+                if (cl.Unplaced.Count > 0)
+                {
+                    var note = UiKit.Text(content, "Overflow", UiKit.L("$tv_ui_container_overflow"), 12, UiKit.Warning);
+                    UiKit.TopLeft(note.rectTransform, 0f, y, naturalW, 20f);
+                    y += 22f;
+                    int perRow = Mathf.Max(1, cl.Grid.W);
+                    for (int i = 0; i < cl.Unplaced.Count; i++)
+                    {
+                        AddItemView(content, cl.Unplaced[i], inventory, (i % perRow) * cell, y + (i / perRow) * cell, cell, cell, false);
+                    }
+                    y += Mathf.CeilToInt(cl.Unplaced.Count / (float)perRow) * cell + 2f;
+                }
+            }
+            return top + viewH + 8f;
         }
 
         // ------------------------------------------------------------------
@@ -466,32 +555,35 @@ namespace TarkoValheim.Stash.UI
                 Corner(bg, item.m_stack.ToString(), 13, Color.white, TextAnchor.LowerRight);
             }
 
-            var gun = Firearms.FindGun(name);
-            if (gun != null)
+            // Weapons: how many parts are on it.
+            if (WeaponMods.IsModular(item))
             {
-                Corner(bg, $"{GunState.Mag(item)}/{GunStats.Of(gun, item).MagSize}", 12,
-                    GunState.Jammed(item) ? UiKit.Warning : gold, TextAnchor.UpperLeft);
-                Corner(bg, ShortCaliber(gun.Caliber), 10, UiKit.Muted, TextAnchor.LowerRight);
+                int parts = WeaponMods.Totals(item).Count;
+                if (parts > 0)
+                {
+                    Corner(bg, "+" + parts, 12, UiKit.Accent, TextAnchor.UpperLeft);
+                }
             }
 
-            var ammo = Firearms.FindAmmo(name);
-            if (ammo != null)
-            {
-                Corner(bg, ShortCaliber(ammo.Caliber), 10, gold, TextAnchor.UpperLeft);
-            }
-
-            var magSpec = Magazines.Find(name);
-            if (magSpec != null)
-            {
-                Corner(bg, $"{GunState.Mag(item)}/{magSpec.Capacity}", 12, gold, TextAnchor.UpperLeft);
-                Corner(bg, ShortCaliber(magSpec.Caliber), 10, UiKit.Muted, TextAnchor.LowerRight);
-            }
-
-            var partSpec = GunParts.Find(name);
+            // Parts: which slot, material tier and level.
+            var partSpec = WeaponParts.Find(name);
             if (partSpec != null)
             {
-                string tier = partSpec.Tier > 0 ? " " + new[] { "", "I", "II", "III", "IV", "V" }[partSpec.Tier] : "";
-                Corner(bg, partSpec.Label + tier, 11, new Color(0.95f, 0.8f, 0.55f), TextAnchor.UpperLeft);
+                Corner(bg, UiKit.L("$tv_badge_" + partSpec.Slot.ToString().ToLowerInvariant()), 10, new Color(0.95f, 0.8f, 0.55f), TextAnchor.UpperLeft);
+                Corner(bg, "Lv" + Mathf.Max(1, item.m_quality), 10, gold, TextAnchor.LowerRight);
+            }
+
+            // Arrows and bolts: what they are, briefly.
+            var type = item.m_shared.m_itemType;
+            string ammoType = type == ItemDrop.ItemData.ItemType.Ammo ? (item.m_shared.m_ammoType ?? "").ToLowerInvariant() : "";
+            if (ammoType.Contains("arrow") || ammoType.Contains("bolt"))
+            {
+                Corner(bg, UiKit.L(ammoType.Contains("arrow") ? "$tv_badge_arrow" : "$tv_badge_bolt"), 9, UiKit.Muted, TextAnchor.UpperLeft);
+            }
+
+            if (Meds.Find(name) != null)
+            {
+                Corner(bg, "+", 16, new Color(0.85f, 0.3f, 0.3f), TextAnchor.UpperLeft);
             }
 
             // Armour value, like Tarkov's armour class badge.
@@ -554,20 +646,6 @@ namespace TarkoValheim.Stash.UI
             UiKit.Stretch(t.rectTransform, 3f);
         }
 
-        private static string ShortCaliber(string token)
-        {
-            switch (token)
-            {
-                case "$tv_cal_9x18": return "9x18";
-                case "$tv_cal_12ga": return "12ga";
-                case "$tv_cal_762x54r": return "7.62R";
-                case "$tv_cal_545x39": return "5.45";
-            }
-            var s = UiKit.L(token);
-            int space = s.IndexOf(' ');
-            return space > 0 ? s.Substring(0, space) : s;
-        }
-
         private static ItemFilter Category(ItemDrop.ItemData item)
         {
             var name = Gear.PrefabName(item);
@@ -576,11 +654,15 @@ namespace TarkoValheim.Stash.UI
             {
                 return ItemFilter.Gear;
             }
-            if (GunParts.Find(name) != null)
+            if (WeaponParts.Find(name) != null)
             {
-                return ItemFilter.Mods;
+                return ItemFilter.Parts;
             }
-            if (Magazines.Find(name) != null || type == ItemDrop.ItemData.ItemType.Ammo
+            if (Meds.Find(name) != null)
+            {
+                return ItemFilter.Food;
+            }
+            if (type == ItemDrop.ItemData.ItemType.Ammo
                 || type == ItemDrop.ItemData.ItemType.AmmoNonEquipable)
             {
                 return ItemFilter.Ammo;
@@ -605,7 +687,7 @@ namespace TarkoValheim.Stash.UI
             switch (Category(item))
             {
                 case ItemFilter.Gear: return new Color(0.2f, 0.26f, 0.18f, 0.92f);
-                case ItemFilter.Mods: return new Color(0.28f, 0.23f, 0.19f, 0.92f);
+                case ItemFilter.Parts: return new Color(0.28f, 0.23f, 0.19f, 0.92f);
                 case ItemFilter.Ammo: return new Color(0.3f, 0.26f, 0.13f, 0.92f);
                 case ItemFilter.Weapons: return new Color(0.27f, 0.17f, 0.15f, 0.92f);
                 case ItemFilter.Armor: return new Color(0.15f, 0.2f, 0.28f, 0.92f);

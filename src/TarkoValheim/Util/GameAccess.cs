@@ -363,6 +363,42 @@ namespace TarkoValheim.Util
             return list;
         }
 
+        private static object _worldGen;
+        private static MethodInfo _getBiome;
+
+        /// <summary>The biome at a position, or None if it can't be read.</summary>
+        public static Heightmap.Biome BiomeAt(Vector3 pos)
+        {
+            try
+            {
+                var type = typeof(WorldGenerator);
+                var instanceProp = AccessTools.Property(type, "instance");
+                _worldGen = instanceProp != null ? instanceProp.GetValue(null, null) : AccessTools.Field(type, "instance")?.GetValue(null);
+                if (_worldGen == null)
+                {
+                    return Heightmap.Biome.None;
+                }
+                if (_getBiome == null)
+                {
+                    foreach (var m in AccessTools.GetDeclaredMethods(type))
+                    {
+                        var ps = m.GetParameters();
+                        if (m.Name == "GetBiome" && !m.IsStatic && ps.Length >= 2 && ps[0].ParameterType == typeof(float)
+                            && ps[1].ParameterType == typeof(float) && (_getBiome == null || ps.Length < _getBiome.GetParameters().Length))
+                        {
+                            _getBiome = m;
+                        }
+                    }
+                }
+                return Call(_getBiome, _worldGen, pos.x, pos.z) is Heightmap.Biome b ? b : Heightmap.Biome.None;
+            }
+            catch (Exception e)
+            {
+                WarnOnce("BiomeAt", e);
+                return Heightmap.Biome.None;
+            }
+        }
+
         public static bool RequireOnlyOneIngredient(Recipe recipe) => Get(RecipeOnlyOne, recipe, false);
 
         public static GameObject FindHitObject(Collider collider)

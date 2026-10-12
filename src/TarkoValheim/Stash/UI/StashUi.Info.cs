@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using TarkoValheim.Content;
-using TarkoValheim.Guns;
+using TarkoValheim.Health;
+using TarkoValheim.Raid;
 using TarkoValheim.Util;
 using UnityEngine;
 
 namespace TarkoValheim.Stash.UI
 {
-    /// <summary>SKILLS and HEALTH tabs: read-only character pages.</summary>
+    /// <summary>SKILLS and STATUS tabs: read-only character pages.</summary>
     internal partial class StashUi
     {
         // ------------------------------------------------------------------
@@ -56,23 +57,13 @@ namespace TarkoValheim.Stash.UI
             }
 
             var type = skill.m_info.m_skill;
-            bool gun = GunSkills.TryClass(type, out var cls);
-            var name = UiKit.Text(rt, "Name", SkillName(type, gun, cls), 17, Color.white);
+            var name = UiKit.Text(rt, "Name", SkillName(type), 17, Color.white);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             UiKit.TopLeft(name.rectTransform, 86f, 10f, w - 160f, 24f);
 
             int level = Mathf.FloorToInt(skill.m_level);
             var lv = UiKit.Text(rt, "Level", level.ToString(), 30, UiKit.Accent, TextAnchor.UpperRight);
             UiKit.TopLeft(lv.rectTransform, w - 80f, 6f, 70f, 40f);
-
-            if (gun)
-            {
-                // What the level actually buys, per GunStats.
-                float f = Mathf.Clamp01(skill.m_level / 100f);
-                var effect = UiKit.Text(rt, "Effect",
-                    string.Format(UiKit.L("$tv_ui_gun_skill_effect"), 40f * f, 30f * f, 30f * f), 12, UiKit.Muted);
-                UiKit.TopLeft(effect.rectTransform, 86f, 36f, w - 96f, 20f);
-            }
 
             var barBg = UiKit.Image(rt, "Bar", new Color(0f, 0f, 0f, 0.6f), false);
             UiKit.TopLeft(barBg.rectTransform, 86f, h - 26f, w - 96f, 12f);
@@ -84,19 +75,8 @@ namespace TarkoValheim.Stash.UI
             frt.offsetMin = frt.offsetMax = Vector2.zero;
         }
 
-        private static string SkillName(Skills.SkillType type, bool gun, GunClass cls)
+        private static string SkillName(Skills.SkillType type)
         {
-            if (gun)
-            {
-                switch (cls)
-                {
-                    case GunClass.Handgun: return UiKit.L("$tv_skill_handguns");
-                    case GunClass.Smg: return UiKit.L("$tv_skill_smgs");
-                    case GunClass.Shotgun: return UiKit.L("$tv_skill_shotguns");
-                    case GunClass.AssaultRifle: return UiKit.L("$tv_skill_assault_rifles");
-                    case GunClass.Marksman: return UiKit.L("$tv_skill_marksman");
-                }
-            }
             string token = "$skill_" + type.ToString().ToLowerInvariant();
             string name = UiKit.L(token);
             // Valheim shows unknown tokens as "[skill_x]".
@@ -104,9 +84,9 @@ namespace TarkoValheim.Stash.UI
         }
 
         // ------------------------------------------------------------------
-        // Health
+        // Status
 
-        private void BuildHealth(Player player)
+        private void BuildStatus(Player player)
         {
             float colW = 580f;
 
@@ -133,16 +113,66 @@ namespace TarkoValheim.Stash.UI
                 weight > max ? new Color(0.7f, 0.2f, 0.15f, 1f) : new Color(0.32f, 0.36f, 0.3f, 1f), 0f, y, colW, 30f);
             y += 44f;
 
+            // Injuries and what treats them.
+            UiKit.Header(left, UiKit.L("$tv_ui_injuries"), "", 0f, y, colW);
+            y += 28f;
+            var conditions = Conditions.Active(player);
+            if (conditions.Count == 0)
+            {
+                var ok = UiKit.Text(left, "NoInjury", UiKit.L("$tv_ui_no_injuries"), 15, UiKit.Muted);
+                UiKit.TopLeft(ok.rectTransform, 0f, y, colW, 22f);
+                y += 26f;
+            }
+            foreach (var c in conditions)
+            {
+                string key = c.ToString().ToLowerInvariant();
+                var row = UiKit.Image(left, "Injury", new Color(0.2f, 0.08f, 0.07f, 0.95f), false);
+                UiKit.TopLeft(row.rectTransform, 0f, y, colW, 40f);
+                var name = UiKit.Text(row.transform, "Name", UiKit.L("$tv_cond_" + key), 16,
+                    c == Condition.Fracture ? new Color(0.9f, 0.7f, 0.25f) : new Color(0.95f, 0.4f, 0.35f), TextAnchor.MiddleLeft);
+                UiKit.TopLeft(name.rectTransform, 10f, 0f, 220f, 40f);
+                var fix = UiKit.Text(row.transform, "Fix", UiKit.L("$tv_cond_fix_" + key), 13, UiKit.Label, TextAnchor.MiddleRight);
+                UiKit.TopLeft(fix.rectTransform, 230f, 0f, colW - 240f, 40f);
+                y += 44f;
+            }
+            float pain = Conditions.PainkillerLeft(player);
+            if (pain > 0f)
+            {
+                int p = Mathf.CeilToInt(pain);
+                var pk = UiKit.Text(left, "Painkiller", $"<color=#7fd36b>{UiKit.L("$tv_cond_painkiller")}</color>  {p / 60}:{p % 60:00}", 15, UiKit.Label);
+                UiKit.TopLeft(pk.rectTransform, 0f, y, colW, 22f);
+                y += 26f;
+            }
+            y += 10f;
+
+            // Raid.
+            UiKit.Header(left, UiKit.L("$tv_ui_raid"), "", 0f, y, colW);
+            y += 28f;
             var facts = new List<string>
             {
                 $"{UiKit.L("$tv_ui_armor")}: {GameAccess.BodyArmor(player):0}"
             };
-            var raid = Raid.RaidTracker.InRaid;
+            var raid = RaidTracker.InRaid;
             if (raid.HasValue)
             {
                 facts.Add(UiKit.L(raid.Value ? "$tv_ui_in_raid_long" : "$tv_ui_in_hideout_long"));
             }
+            if (raid == true && Plugin.RaidHostility.Value)
+            {
+                string threat = $"{UiKit.L("$tv_ui_threat")} {StatusHud.ThreatBar(Hostility.Threat)}";
+                float next = Hostility.SecondsToNextThreat;
+                if (next >= 0f)
+                {
+                    int n = Mathf.CeilToInt(next);
+                    threat += "  " + string.Format(UiKit.L("$tv_ui_threat_next"), $"{n / 60}:{n % 60:00}");
+                }
+                facts.Add(threat);
+            }
             facts.Add(UiKit.L("$tv_ui_death_rule_" + Plugin.RaidDeathRule.Value.ToString().ToLowerInvariant()));
+            if (Plugin.PortalsOnlyInHideouts.Value)
+            {
+                facts.Add(UiKit.L("$tv_ui_portal_rule"));
+            }
             var factText = UiKit.Text(left, "Facts", string.Join("\n\n", facts.ToArray()), 15, UiKit.Label);
             UiKit.TopLeft(factText.rectTransform, 0f, y, colW, 300f);
 

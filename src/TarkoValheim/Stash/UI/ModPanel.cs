@@ -1,154 +1,179 @@
+using System.Collections.Generic;
 using System.Text;
 using TarkoValheim.Content;
-using TarkoValheim.Guns;
+using TarkoValheim.Modding;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace TarkoValheim.Stash.UI
 {
     /// <summary>
-    /// Weapon modding screen: one box per part slot the gun has, and the
-    /// gun's stats with and without its parts. Drag a part onto a slot (or
-    /// onto the gun in any grid) to install it; right-click a slot to take
-    /// the part off.
+    /// Weapon modding screen: one box per part slot the weapon has (blade,
+    /// grip, guard, wrap...), and its stats with and without its parts. Drag
+    /// a part onto a slot (or onto the weapon in any grid) to install it;
+    /// right-click a slot to take the part off.
     /// </summary>
     internal static class ModPanel
     {
         private const float Pad = 12f;
 
         public static RectTransform Build(StashUi owner, RectTransform parent, Player player,
-            ItemDrop.ItemData gunItem, Inventory gunInventory, System.Collections.Generic.List<DropTarget> targets)
+            ItemDrop.ItemData weapon, Inventory weaponInventory, List<DropTarget> targets)
         {
-            var gun = Firearms.FindGun(Gear.PrefabName(gunItem));
+            var family = WeaponMods.FamilyOf(weapon);
             float cell = Plugin.CellSize.Value;
-            float box = Mathf.Round(cell * 1.6f);
-            float width = 3 * box + 2 * 8f + 2 * Pad + 250f;
+            float box = Mathf.Round(cell * 1.9f);
+            float width = 600f;
 
             var bg = UiKit.Image(parent, "Mods", UiKit.PanelBg);
             var rt = bg.rectTransform;
-            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 0.5f);
 
-            var title = UiKit.Text(rt, "Title", UiKit.L(gunItem.m_shared.m_name) + "  -  " + UiKit.L("$tv_ui_modding"),
-                18, UiKit.Label, TextAnchor.MiddleLeft);
-            UiKit.TopLeft(title.rectTransform, Pad, 4f, width - 80f, 28f);
-            var close = UiKit.Button(rt, "Close", "X", owner.CloseModPanel);
-            UiKit.TopLeft((RectTransform)close.transform, width - Pad - 28f, 6f, 28f, 24f);
+            UiKit.Header(rt, UiKit.L("$tv_ui_modding") + "  <color=#8a8a84>" + UiKit.L(weapon.m_shared.m_name) + "</color>", "", 0f, 0f, width);
+            var close = UiKit.Button(rt, "Close", "X", owner.CloseModPanel, false, 13);
+            UiKit.TopLeft((RectTransform)close.transform, width - 26f, 1f, 24f, 20f);
 
-            // The gun itself.
-            var gunBox = UiKit.Image(rt, "Gun", UiKit.SlotBg);
-            float gunW = 3 * box + 16f;
-            UiKit.TopLeft(gunBox.rectTransform, Pad, 40f, gunW, box);
-            var icon = UiKit.Image(gunBox.transform, "Icon", Color.white, false);
-            icon.sprite = gunItem.GetIcon();
+            // The weapon itself.
+            var weaponBox = UiKit.Image(rt, "Weapon", UiKit.SlotBg);
+            float weaponW = width - 2 * Pad;
+            UiKit.TopLeft(weaponBox.rectTransform, Pad, 32f, weaponW, box);
+            UiKit.Border(weaponBox.transform, new Color(1f, 1f, 1f, 0.08f), 1f);
+            var icon = UiKit.Image(weaponBox.transform, "Icon", Color.white, false);
+            icon.sprite = weapon.GetIcon();
             icon.preserveAspect = true;
             UiKit.Stretch(icon.rectTransform, 6f);
 
-            // Slots, three per row.
-            int i = 0;
-            float slotsTop = 40f + box + 10f;
-            foreach (var slot in GunParts.OpenSlots(gun))
+            // One box per slot, in a row.
+            var slots = new List<PartSlot>(WeaponParts.SlotsOf(family));
+            float slotW = Mathf.Min(box * 1.4f, (weaponW - (slots.Count - 1) * 8f) / Mathf.Max(1, slots.Count));
+            float slotsTop = 32f + box + 10f;
+            for (int i = 0; i < slots.Count; i++)
             {
-                float x = Pad + (i % 3) * (box + 8f);
-                float y = slotsTop + (i / 3) * (box + 8f);
-                SlotBox(rt, gunItem, gunInventory, slot, x, y, box, targets);
-                i++;
+                SlotBox(rt, weapon, weaponInventory, family, slots[i], Pad + i * (slotW + 8f), slotsTop, slotW, box, targets);
             }
-            float slotsBottom = slotsTop + Mathf.CeilToInt(i / 3f) * (box + 8f);
+            float y = slotsTop + box + 12f;
 
-            // Stats: base (no parts) against current.
-            var now = GunStats.Of(gun, gunItem, player);
-            var bare = GunStats.Of(gun, null, player);
-            var stats = UiKit.Text(rt, "Stats", Describe(gun, bare, now), 14, UiKit.Label);
-            UiKit.TopLeft(stats.rectTransform, Pad + gunW + 14f, 40f, 240f, 300f);
+            var stats = UiKit.Text(rt, "Stats", Describe(weapon), 14, UiKit.Label);
+            UiKit.TopLeft(stats.rectTransform, Pad, y, width - 2 * Pad, 220f);
+            y += stats.preferredHeight + 10f;
 
-            var hint = UiKit.Text(rt, "Hint", UiKit.L("$tv_ui_mod_hint"), 12, new Color(1f, 1f, 1f, 0.5f));
-            UiKit.TopLeft(hint.rectTransform, Pad, slotsBottom + 2f, width - 2 * Pad, 36f);
+            var hint = UiKit.Text(rt, "Hint", UiKit.L("$tv_ui_mod_hint"), 12, UiKit.Muted);
+            UiKit.TopLeft(hint.rectTransform, Pad, y, width - 2 * Pad, 36f);
 
-            rt.sizeDelta = new Vector2(width, Mathf.Max(slotsBottom + 44f, 340f));
+            rt.sizeDelta = new Vector2(width, y + 44f);
             return rt;
         }
 
-        private static void SlotBox(RectTransform parent, ItemDrop.ItemData gunItem, Inventory gunInventory, PartSlot slot,
-            float x, float y, float size, System.Collections.Generic.List<DropTarget> targets)
+        private static void SlotBox(RectTransform parent, ItemDrop.ItemData weapon, Inventory weaponInventory, WeaponFamily family,
+            PartSlot slot, float x, float y, float w, float h, List<DropTarget> targets)
         {
             var bg = UiKit.Image(parent, "Slot_" + slot, UiKit.SlotBg);
-            UiKit.TopLeft(bg.rectTransform, x, y, size, size);
-            var label = UiKit.Text(bg.transform, "Label", UiKit.L("$tv_partslot_" + slot.ToString().ToLowerInvariant()),
-                11, new Color(1f, 1f, 1f, 0.45f));
-            UiKit.Stretch(label.rectTransform, 3f);
+            UiKit.TopLeft(bg.rectTransform, x, y, w, h);
+            UiKit.Border(bg.transform, UiKit.AccentDim, 1f);
+            var label = UiKit.Text(bg.transform, "Label", UiKit.L(WeaponParts.SlotToken(slot, family)).ToUpperInvariant(),
+                11, UiKit.Muted);
+            UiKit.Stretch(label.rectTransform, 4f);
 
-            var part = GunMods.Installed(gunItem, slot);
-            var mag = slot == PartSlot.Magazine ? GunMods.InstalledMag(gunItem) : null;
-            string installedId = part != null ? part.Id : mag != null ? mag.Id : null;
-            if (installedId != null)
+            if (WeaponMods.TryGet(weapon, slot, out var installed))
             {
-                bg.color = new Color(0.3f, 0.22f, 0.16f, 0.95f);
-                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(installedId) : null;
+                bg.color = new Color(0.22f, 0.17f, 0.11f, 0.95f);
+                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(installed.Part.Id) : null;
                 var drop = prefab != null ? prefab.GetComponent<ItemDrop>() : null;
                 if (drop != null)
                 {
                     var icon = UiKit.Image(bg.transform, "Icon", Color.white, false);
                     icon.sprite = drop.m_itemData.GetIcon();
                     icon.preserveAspect = true;
-                    UiKit.Stretch(icon.rectTransform, 10f);
+                    UiKit.Stretch(icon.rectTransform, 14f);
                 }
-                string caption = mag != null
-                    ? $"{GunState.Mag(gunItem)}/{mag.Capacity}"
-                    : UiKit.L("$" + installedId.ToLowerInvariant());
-                var name = UiKit.Text(bg.transform, "Part", caption, 11, Color.white, TextAnchor.LowerCenter);
+                var name = UiKit.Text(bg.transform, "Part", $"{UiKit.L("$" + installed.Part.Id.ToLowerInvariant())}  Lv{installed.Level}",
+                    11, Color.white, TextAnchor.LowerCenter);
                 UiKit.Stretch(name.rectTransform, 3f);
 
                 var view = bg.gameObject.AddComponent<ModSlotView>();
-                view.Gun = gunItem;
-                view.Inventory = gunInventory;
+                view.Weapon = weapon;
+                view.Inventory = weaponInventory;
                 view.Slot = slot;
             }
 
             targets.Add(new DropTarget
             {
-                Rect = bg.rectTransform, Inventory = gunInventory, ModSlot = (int)slot, ModGun = gunItem
+                Rect = bg.rectTransform, Inventory = weaponInventory, ModSlot = (int)slot, ModWeapon = weapon
             });
         }
 
-        private static string Describe(GunSpec gun, GunStats bare, GunStats now)
+        /// <summary>The weapon's numbers with its parts, and what the parts add.</summary>
+        public static string Describe(ItemDrop.ItemData weapon)
         {
+            var t = WeaponMods.Totals(weapon);
             var sb = new StringBuilder();
-            sb.AppendLine("<b>" + UiKit.L("$tv_ui_stats") + "</b>");
-            Line(sb, "$tv_stat_damage", bare.DamageMult * 100f, now.DamageMult * 100f, "0", "%", true);
-            Line(sb, "$tv_stat_velocity", bare.Velocity, now.Velocity, "0", " m/s", true);
-            Line(sb, "$tv_stat_hip", bare.HipSpread, now.HipSpread, "0.00", "°", false);
-            Line(sb, "$tv_stat_ads", bare.AdsSpread, now.AdsSpread, "0.00", "°", false);
-            Line(sb, "$tv_stat_recoil", bare.RecoilUp, now.RecoilUp, "0.00", "", false);
-            Line(sb, "$tv_stat_reload", bare.ReloadTime, now.ReloadTime, "0.0", " s", false);
-            Line(sb, "$tv_stat_mag", now.MagSize, now.MagSize, "0", "", true);
-            Line(sb, "$tv_stat_zoom", Zoom(bare.AdsFov), Zoom(now.AdsFov), "0.0", "x", true);
-            sb.AppendLine();
-            sb.Append($"{UiKit.L(gun.Caliber)}, {gun.Rpm} RPM\n{GunState.ModeNames(gun)}");
+            sb.AppendLine("<b>" + UiKit.L("$tv_ui_part_effects") + "</b>");
+            if (t.Count == 0)
+            {
+                sb.AppendLine(UiKit.L("$tv_ui_no_parts"));
+                return sb.ToString();
+            }
+            Line(sb, "$tv_stat_damage", t.Damage, false);
+            Line(sb, "$tv_stat_durability", t.Durability, false);
+            Line(sb, "$tv_stat_stamina", t.Stamina, true);
+            Line(sb, "$tv_stat_block", t.Block, false);
+            Line(sb, "$tv_stat_parry", t.Parry, false);
+            if (t.Spirit > 0f)
+            {
+                sb.AppendLine($"<color=#7fd36b>{UiKit.L("$tv_stat_spirit")} +{t.Spirit * 100f:0}%</color>");
+            }
+            if (t.Fire > 0f)
+            {
+                sb.AppendLine($"<color=#7fd36b>{UiKit.L("$tv_stat_fire")} +{t.Fire * 100f:0}%</color>");
+            }
             return sb.ToString();
         }
 
-        private static void Line(StringBuilder sb, string token, float before, float after, string format, string unit, bool higherIsBetter)
+        private static void Line(StringBuilder sb, string token, float v, bool lowerIsBetter)
         {
-            string value = after.ToString(format) + unit;
-            if (Mathf.Abs(after - before) > 0.0001f)
+            if (Mathf.Abs(v) < 0.0001f)
             {
-                bool better = higherIsBetter ? after > before : after < before;
-                value = $"<color={(better ? "#7fd36b" : "#e0604f")}>{value}</color>";
+                return;
             }
-            sb.AppendLine($"{UiKit.L(token)}: {value}");
+            bool good = lowerIsBetter ? v < 0f : v > 0f;
+            sb.AppendLine($"<color={(good ? "#7fd36b" : "#e0604f")}>{UiKit.L(token)} {(v > 0 ? "+" : "")}{v * 100f:0}%</color>");
         }
 
-        // Magnification relative to Valheim's default ~65° field of view.
-        private static float Zoom(float fov)
+        /// <summary>One part's effect at its level, for tooltips.</summary>
+        public static string PartSummary(PartSpec part, int level)
         {
-            return Mathf.Tan(65f * 0.5f * Mathf.Deg2Rad) / Mathf.Tan(Mathf.Max(fov, 1f) * 0.5f * Mathf.Deg2Rad);
+            var sb = new StringBuilder();
+            sb.AppendLine($"{UiKit.L("$tv_ui_part_slot_" + part.Slot.ToString().ToLowerInvariant())}  <color=#8a8a84>{UiKit.L("$tv_ui_level")} {level}/{WeaponParts.MaxLevel}</color>");
+            Line(sb, "$tv_stat_damage", part.At(part.Damage, part.DamageStep, level), false);
+            Line(sb, "$tv_stat_durability", part.At(part.Durability, part.DurabilityStep, level), false);
+            Line(sb, "$tv_stat_stamina", part.At(part.Stamina, part.StaminaStep, level), true);
+            Line(sb, "$tv_stat_block", part.At(part.Block, part.BlockStep, level), false);
+            Line(sb, "$tv_stat_parry", part.At(part.Parry, part.ParryStep, level), false);
+            if (part.Spirit > 0f)
+            {
+                sb.AppendLine($"<color=#7fd36b>{UiKit.L("$tv_stat_spirit")} +{part.At(part.Spirit, part.SpiritStep, level) * 100f:0}%</color>");
+            }
+            if (part.Fire > 0f)
+            {
+                sb.AppendLine($"<color=#7fd36b>{UiKit.L("$tv_stat_fire")} +{part.At(part.Fire, part.FireStep, level) * 100f:0}%</color>");
+            }
+
+            var fits = new List<string>();
+            foreach (WeaponFamily f in System.Enum.GetValues(typeof(WeaponFamily)))
+            {
+                if (f != WeaponFamily.None && WeaponParts.Fits(part, f))
+                {
+                    fits.Add(UiKit.L("$tv_family_" + f.ToString().ToLowerInvariant()));
+                }
+            }
+            sb.Append(UiKit.L("$tv_ui_fits") + ": " + string.Join(", ", fits.ToArray()));
+            return sb.ToString();
         }
     }
 
     /// <summary>Installed-part box: right-click takes the part off.</summary>
     internal class ModSlotView : MonoBehaviour, IPointerClickHandler
     {
-        public ItemDrop.ItemData Gun;
+        public ItemDrop.ItemData Weapon;
         public Inventory Inventory;
         public PartSlot Slot;
 
@@ -156,7 +181,7 @@ namespace TarkoValheim.Stash.UI
         {
             if (e.button == PointerEventData.InputButton.Right)
             {
-                GunMods.Remove(Player.m_localPlayer, Gun, Inventory, Slot);
+                WeaponMods.Remove(Player.m_localPlayer, Weapon, Inventory, Slot);
                 StashUi.MarkDirty();
             }
         }

@@ -254,21 +254,6 @@ namespace TarkoValheim.Stash
 
         private static IEnumerable<SlotId> PreferredWeaponSlots(ItemDrop.ItemData item)
         {
-            var gun = Firearms.FindGun(Gear.PrefabName(item));
-            if (gun != null)
-            {
-                if (gun.Holster)
-                {
-                    yield return SlotId.Holster;
-                }
-                else
-                {
-                    yield return SlotId.Primary;
-                    yield return SlotId.Secondary;
-                }
-                yield break;
-            }
-
             if (item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.OneHandedWeapon)
             {
                 yield return SlotId.Melee;

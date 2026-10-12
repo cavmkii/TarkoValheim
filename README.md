@@ -1,179 +1,144 @@
 # TarkoValheim
 
-Tarkov's core loop on Valheim's open world. Build a hideout wherever you like.
-Everything outside its radius is raid. If you die in raid you lose your kit,
-except what's in your secure container. Guns have calibers and the ammo isn't
-interchangeable.
+Tarkov's loop on top of vanilla Valheim. There are no guns. You fight with
+Valheim's own weapons, but they're built from parts you craft, level and swap,
+like Tarkov's attachments. Build a hideout; everything outside it is raid. If
+you die in raid you lose your kit, except what's in your secure container.
+The longer you stay out, the more the land turns on you.
 
-A BepInEx plugin built on [Jötunn](https://github.com/Valheim-Modding/Jotunn).
+A BepInEx plugin built on [Jotunn](https://github.com/Valheim-Modding/Jotunn).
 
-## What's in 0.4.0
+## What's in 0.5.0
 
-### One Tarkov screen for everything
+### Modular weapons
 
-Tab (and E on any crafting station) opens a full-screen Tarkov-style screen
-that replaces all of Valheim's inventory screen. It has **BACK** at the top
-left, then **GEAR | CRAFTING | SKILLS | HEALTH** tabs. Anything you can
-press has a light-orange outline. The screen is laid out on a 1920x1080
-frame and scaled to fit.
+Every vanilla sword, knife, axe, club, spear, atgeir, bow, crossbow and shield
+takes parts. Right-click it and choose **Modify weapon**, then drag parts onto
+its slots, or drop a part straight onto the weapon in any grid.
 
-- **GEAR**: Tarkov's layout.
-  - Left: equipment slots (HEADWEAR, BODY ARMOR, LEGS, CAPE, BELT, ARMBAND,
-    ON SLING, ON BACK, HOLSTER, SCABBARD), with health, stamina, weight and
-    armor underneath.
-  - Middle: TACTICAL RIG, POCKETS, BACKPACK and POUCH. Each one shows its
-    item box beside its grid and a used/total cell count.
-  - Right: the open chest or stash, with a category filter (ALL, WEAPONS,
-    AMMO, MODS, GEAR, ARMOR, FOOD, OTHER). The filter dims everything else.
-    When you modify a weapon, its panel opens here instead.
-  - Bottom: QUICK USE bar 1-8, and a *drop here to discard* box.
-- **CRAFTING**: replaces Valheim's crafting panel at every station, and does
-  hand crafting with no station. The left list puts what you can make now
-  first, then what needs a higher station level, then what you're missing
-  items for. Upgrades of items you carry are in the same list. The right
-  side shows the recipe: the item as it will come out, the station and level
-  it needs, and every ingredient as have / need. **REPAIR ALL** repairs
-  everything this station can fix.
-- **SKILLS**: every skill as a card with its level and progress bar. Gun
-  skills also say what the level buys (less recoil, faster reload, tighter
-  aimed spread).
-- **HEALTH**: health, stamina, eitr, weight, armor, the active foods with
-  time left, status effects, and whether you're in raid and which death rule
-  applies.
-
-QoL from Tarkov players' wish lists:
-
-- Caliber on ammo, magazine and gun icons.
-- Rounds/capacity on magazines.
-- Used/total cells on worn rigs and packs.
-- Armor value on armor.
-- **Middle-click to lock** an item. A locked item can't be dragged,
-  transferred or discarded.
-- **Drop an item on another of the same size** to swap them.
-- **Rotate** in the right-click menu.
-- Shortcuts listed in every tooltip and along the bottom bar.
-
-Crafting through this screen is instant: there's no progress bar. Recipes,
-station levels and costs are Valheim's own.
-
-### Tarkov inventory (from 0.3.0)
-
-Valheim's inventory grid is replaced by Tetris grids:
-
-- **Multi-cell items.** A rifle is 5x1, an AK 4x2, a helmet 2x2, body armor
-  3x3, materials 1x1. Press **R while dragging** to rotate.
-- **Equipment slots:** Head, Body, Legs, Cape, Belt, Trinket (worn armor);
-  Rig, Backpack, Secure container; Primary, Secondary, Holster, Melee
-  (bound to keys **1-4**).
-- **Pockets** (four 1x1), plus the **rig** and **backpack** grids. Their size
-  depends on what you wear. With no rig and no backpack you have 4 pocket cells.
-- **Secure container**, drawn in gold. Its contents survive death in raid.
-  Every character starts with an Alpha (2x2); craft Beta, Gamma or Kappa at the
-  Hideout and drag one onto the slot, while the old one is empty, to upgrade.
-- **Quick slots 5-8.** Drag any carried item onto one to bind it to that key.
-- **Stash.** A 10-wide chest built at the Hideout. Every chest, stash and
-  tombstone opens in the same Tetris view.
-- **Pickups need room.** If your grids have no space, you can't pick it up.
-
-Every character also gets a one-time starter kit: Alpha secure container, Scav
-vest and Sling bag.
-
-Controls: **drag** to move, **R** while dragging to rotate, **Shift+drag** to
-split a stack, **Ctrl+click** to send an item to or from the open chest,
-**double-click** to use or equip, **middle-click** to lock, **right-click**
-for a menu (use, modify, unload, rotate, quick slot, lock, discard). Drop on
-the *drop here to discard* box to drop an item on the ground.
-
-Existing characters: items that don't fit the new grids show up under
-**UNSORTED** at the bottom. They are still carried and still count for
-crafting. Move them into your stash or drop them.
-
-### Guns
-
-Firing no longer uses Valheim's crossbow attack:
-
-- **Bullets** travel at real speed with gravity drop. Hits go through
-  Valheim's normal damage path.
-- **Magazines.** Detachable magazines are items: drag rounds onto a magazine
-  to load it, keep spares in your rig or pockets, and **R** swaps the fullest
-  reachable one into your gun (the old one comes back with what was left in
-  it). New guns come with an empty standard magazine. Bigger magazines (AK 45-round,
-  95-round drum, SVD 20-round) are slower to swap. You can also drag rounds
-  straight onto a gun to top up the magazine in it. **R** also
-  clears malfunctions. Only pockets, rig and secure container count (Tarkov
-  rules, configurable). The MP-133 and Mosin have no detachable magazine:
-  R loads them one round at a time, and firing interrupts the reload. With
-  their tube full, R switches to the other ammo type.
-- **Fire modes:** **B** toggles them (the AK has auto and semi).
-- **Recoil** kicks the view up and sideways. The gun's class skill reduces it.
-- **Aim down sights:** hold **right mouse**. The camera moves to first person
-  and zooms, spread tightens, and a sight picture is drawn over the screen:
-  iron sights (front post in a rear notch) for most guns, and a PSO-style scope
-  with about 4x zoom for the SVD. The sights are flat overlays drawn in code.
-  Real 3D sights need gun models from a Unity asset bundle.
-- **Spread** grows while moving and during sustained fire.
-- **Malfunctions** get more likely as durability falls. **R** clears them.
-- **Ammo types per caliber:** 9x18 PST/PBM, 12ga buckshot/slug, 5.45 PS/BS,
-  7.62x54R LPS/7N1. The ammo decides damage, the gun decides handling.
-- **HUD:** an ammo readout, plus a crosshair sized to your real cone of fire.
-  `AmmoDisplay = Tarkov` hides the count except for a rough estimate after
-  checking the magazine (**T**).
-
-| Gun | Class | Caliber | Magazine | Modes | Tier |
-|---|---|---|---|---|---|
-| PM | Handgun | 9x18 | 8 | semi | Bronze |
-| PP-91 Kedr | SMG | 9x18 | 30 | auto/semi | Iron |
-| MP-133 | Shotgun | 12ga | 6 (tube) | pump | Bronze |
-| Mosin | Marksman | 7.62x54R | 5 (stripper) | bolt | Iron |
-| SVD | Marksman | 7.62x54R | 10 | semi | Black metal + silver |
-| AK-74 | Assault rifle | 5.45x39 | 30 | auto/semi | Black metal |
-
-### Gun skills
-
-Each gun class trains its own skill: Handguns, SMGs, Shotguns, Assault rifles
-or Marksman rifles. Hits train it. At level 100 you get 40% less recoil, 30%
-faster reloads and 30% tighter aimed spread.
-
-### Weapon modding
-
-Right-click a gun and choose **Modify weapon**. The modding panel shows one
-slot per part the gun takes (Barrel, Handguard, Stock, Muzzle, Sight,
-Magazine) and its stats against the bare gun. Drag a part onto a slot, or
-straight onto the gun in any grid, to install it. Right-click a slot to take
-the part off. Installed parts are stored on the gun, so they travel with it.
-
-- **Barrels, handguards, stocks** come in five materials: bronze, iron,
-  silver, black metal and flametal. Each tier up improves the same stats:
-  a barrel adds damage and muzzle velocity, a handguard and stock cut recoil.
-- **Muzzles:** flash hider, muzzle brake, suppressor.
-- **Sights:** reflex (red dot), 4x scope, 8x scope. These change the sight
-  picture and zoom.
-- **Magazine:** the slot shows the inserted magazine. Drop a magazine on it
-  to swap, right-click to take it out.
-
-Pistols take a barrel, muzzle and magazine only. All parts are crafted at the
-Hideout.
-
-### Raids (from 0.1.0)
-
-Within 30 m of any Hideout you're out of raid. Leaving starts a raid;
-returning extracts you. Death in raid follows `DeathRule`:
-
-| Rule | Result |
+| Family | Slots |
 |---|---|
-| `LoseEverything` (default) | No tombstone. Everything is gone except the secure container. |
-| `KeepSecure` | Normal tombstone, but the secure container stays on you. |
-| `Vanilla` | Unchanged. |
+| Sword | blade, grip, guard, wrap |
+| Knife | blade, grip, wrap |
+| Axe / club | head, haft, wrap |
+| Spear | head, shaft, wrap |
+| Atgeir | head, shaft, langet, wrap |
+| Bow / crossbow | limbs, grip / stock, string |
+| Shield | handle, rim, straps |
 
-`HardcoreSkillWipe = true` also resets all skills on a raid death.
+| Part | Made of | What it gives |
+|---|---|---|
+| Heads (blade, axe head, mace head, spear head, limbs) | bronze, iron, silver, black metal, flametal | damage, durability; silver adds spirit damage, flametal adds fire |
+| Grips / hafts / shafts / stocks | wood, fine wood, core wood, ancient bark, Yggdrasil | cheaper attacks (stamina), durability |
+| Guards / rims | the five metals | block, parry force |
+| Wraps / strings / straps | leather, deer hide, troll hide, wolf pelt, lox pelt | cheaper attacks, a little block |
 
-## What it actually looks like
+- **Parts level up instead of weapons.** A part goes to level 4 in the
+  CRAFTING tab (metal parts at the forge, wood and leather at the workbench).
+  Weapons and shields no longer upgrade there.
+- **Levels overlap the next material.** A maxed iron blade does slightly
+  more damage than a level 1 silver one, but has no spirit damage.
+- **Parts stay with the weapon.** They go into chests and graves with it, and
+  come off at the level they went on.
+- **Stats change in Valheim's own numbers.** Damage, durability, block, parry
+  and attack stamina all change, so the vanilla tooltip shows the result.
+- **Unchanged without parts.** A weapon with no parts is exactly the vanilla
+  weapon.
 
-There are still no custom models or sounds. Guns are Arbalest clones (they
-look like crossbows and use its firing sound), rounds look like iron bolts,
-rigs and backpacks look like the armor and capes they were cloned from, and
-secure containers look like the crypt key. Real models need a Unity
-AssetBundle, which is the obvious next step.
+### Raids
+
+- **Raid area.** Anywhere outside a Hideout bench's radius is raid.
+- **Death in raid.** You lose everything except what's in your secure
+  container (POUCH). In a hideout you die by normal rules.
+- **Threat rises with time.** The first 5 minutes are calm, so a quick run
+  for materials is cheap. After that the threat level rises every 5 minutes,
+  up to 4:
+  - Monsters spawning near you are more likely to have stars.
+  - Hunting parties of the local biome's monsters come looking for you, more
+    often and in bigger groups as threat rises.
+- **Threat display.** Shown on the HUD (bottom left) and in the STATUS tab,
+  including when it rises next. All of it is configurable.
+- **Portals only work inside a hideout.** You can't build one outside, and
+  an existing one outside does nothing. To portal out, build a forward
+  hideout (FOB) with its own portal first.
+
+### Hideout stash
+
+Inside a hideout, every chest within its radius is one shared stash, shown
+on the right of the GEAR tab as one scrolling list.
+
+- **Moving items.** Drag between chests and your grids, or Ctrl+click to
+  send an item to the first chest with room.
+- **Crafting.** Crafting in the hideout uses materials from the stash as
+  well as what you carry.
+- **What's left out.** Carts, ships, graves, private chests that aren't
+  yours, and chests another player has open don't count.
+
+### Injuries and meds
+
+- **Bleeding.** Cutting and piercing hits can open a light or heavy bleed.
+  Heavy hits are likelier to. Bleeds drain health until treated.
+- **Fractures.** Heavy blunt hits and bad falls can fracture a bone: slow
+  sprinting and a slower jog until splinted.
+- **Meds.** Made at the Hideout:
+
+  | Item | Treats |
+  |---|---|
+  | Bandage | light bleed |
+  | Tourniquet | any bleed |
+  | Splint | fracture |
+  | Painkillers | hide fracture pain for 5 minutes |
+  | Field kit | all bleeds, plus 30% health |
+  | Surgical kit | everything, plus 50% health |
+
+  Use them by double-click, a quick slot, or the menu. A med isn't used up
+  if there's nothing for it to treat.
+- **Where to see them.** Injuries show on the HUD and in the STATUS tab,
+  with what treats them.
+
+### The Tarkov screen
+
+Tab (and E at any station) opens one full-screen screen with GEAR, CRAFTING,
+SKILLS and STATUS tabs.
+
+- **GEAR**: equipment slots, then rig / pockets / backpack / pouch grids,
+  then the hideout stash or open chest (with a category filter), and a
+  quick-use bar.
+- **CRAFTING**: replaces Valheim's panel. What you can make now is listed
+  first, and each ingredient shows have / need.
+- **SKILLS**: every skill as a card with its level and progress.
+- **STATUS**: vitals, injuries, food, status effects, raid threat and rules.
+
+Item controls:
+
+| Action | Control |
+|---|---|
+| Move | drag |
+| Rotate while dragging | R |
+| Split a stack | Shift+drag |
+| Transfer | Ctrl+click |
+| Use | double-click |
+| Lock | middle-click |
+| Menu | right-click |
+| Swap two items of the same size | drop one on the other |
+| Drop on the ground | the *drop here to discard* box |
+
+### Tetris inventory (from 0.3.0)
+
+- **Multi-cell items.** A two-handed weapon is 2x4, body armor 3x3,
+  materials 1x1.
+- **Equipment.** Rigs and backpacks set your grid sizes.
+- **Secure containers.** Alpha 2x2 up to Kappa 3x4.
+- **Starter kit.** Every character starts with an Alpha, a Scav vest and a
+  Sling bag.
+- **Pickups need room** in your grids.
+- **Existing characters.** Items that don't fit show up under UNSORTED.
+
+### Removed in 0.5.0
+
+Guns, ammo, magazines and gun skills are gone. Any you were carrying
+disappear when you load, because Valheim drops items whose prefab no longer
+exists.
 
 ## Install with Vortex
 
@@ -214,33 +179,42 @@ NuGet. CI runs this on every push.
 
 ## How much of this is verified
 
-**One tester has run builds up to 0.4.0 in game. This version (0.4.1) hasn't
-been run yet.** The code compiles against Jotunn 2.30.2's real API and
-against hand-written stand-ins for the game.
+**One tester has run builds up to 0.4.0 in game. This version (0.5.0) hasn't
+been run yet.** The code compiles against Jotunn 2.30.2's real API and against
+hand-written stand-ins for the game. The members it touches were checked
+against EpicLoot, EquipmentAndQuickSlots and AdvancedPortals (RandyKnapp) and
+aedenthorn's mods, which patch the same methods.
 
-Every game member it touches was checked against current open-source mods:
-EquipmentAndQuickSlots and EpicLoot by RandyKnapp (both updated September
-2026), aedenthorn's ValheimMods, and Jotunn's own source. These were not
-found anywhere and are guarded:
+Every hook is optional. If a game update renames something, that one feature
+logs a warning and turns off. These are the riskiest:
 
-- `Player.m_lookPitch` / `m_lookYaw` (recoil). If missing, recoil turns off
-  with a log warning. The direction of the kick is my reading of how Valheim
-  applies mouse input. If recoil pulls the view *down*, that reading is wrong.
-- `HitData.m_hitCollider` (which piece of a rock a bullet hit). Set only if it exists.
-- The `Sprites/Default` shader (tracers). Tracers turn off if it's missing.
+- **Weapon stats:** `ItemData.GetDamage(int, float)`, `GetMaxDurability(int)`,
+  `GetBaseBlockPower(int)`, `GetDeflectionForce(int)`, and
+  `Attack.GetAttackStamina`.
+- **Portal placement:** `Player.PlacePiece` / `TryPlacePiece`. If neither is
+  found, portals can still be built anywhere, but still only work in
+  hideouts.
+- **Bleeds and fractures:**
+  - `Character.RPC_Damage` causes them.
+  - `Player.GetRunSpeedFactor` / `GetJogSpeedFactor` apply the fracture
+    slowdown.
+  - `Character.SetHealth` drains health from bleeding.
+- **Meds:** `Player.ConsumeItem`.
+- **Raid threat:**
+  - `Character.SetLevel` adds the extra stars.
+  - `BaseAI.SetHuntPlayer` sends hunting parties straight at you.
+  - The biome comes from `WorldGenerator.GetBiome`.
+- **Hideout stash:** `Container.Awake`, `CheckAccess` and `IsInUse`, plus
+  taking network ownership of the stash chests. Multiplayer is the least
+  tested part. Two players moving items in the same stash at once could
+  conflict.
 
-New in 0.4.0 and only read through reflection, with fallbacks if missing:
-`CraftingStation.GetLevel` (falls back to level 1), `InventoryGui.Hide`
-(BACK button), `InventoryGui.CanRepair` (falls back to its own station-and-level
-check), `Player.GetFoods`, `Player.GetBodyArmor`, `Skill.GetLevelPercentage`,
-the status effect list, and `Recipe.m_requireOnlyOneIngredient`.
+Part icons borrow vanilla weapon icons (an iron blade looks like the iron
+sword) where one exists, and the material's icon otherwise. Med icons
+borrow the icons of their ingredients.
 
-Things that can only be judged in game: whether the first-person camera
-position looks right, and balance.
-
-Not reachable from the new screen yet: Valheim's trophies, compendium and
-the vanilla crafting progress animation. Set `TetrisInventory = false` to
-get them back.
+Balance is first-pass and needs play. Part modifiers, bleed and fracture
+chances, and threat timings are all guesses tuned on paper.
 
 ## Known conflicts
 
@@ -255,29 +229,27 @@ config to get Valheim's own screen back. Your items are kept either way.
 
 ## Ideas not built yet
 
-- Gun models, sounds and muzzle flash via AssetBundle
-- Health system: bleeding, fractures, bandages, splints, medkits
-- Moving a full rig or backpack (contents packed into the item)
 - Extraction points instead of "any hideout"
-- Hideout modules: upgrades through station extensions (generator,
-  medstation, stash expansion)
-- Scav raiders: hostile human NPCs that carry gear
+- Traders and barter (Haldor, Hildir), then quests
+- Tarkov loot tables in dungeon and ruin chests
+- Hideout modules through station extensions
+- Moving a full rig or backpack (contents packed into the item)
 - Insurance: items returned after N in-game days if nobody looted your body
 
 ## Layout
 
 ```
 src/TarkoValheim/
-  Plugin.cs              entry point, config, keybinds
+  Plugin.cs              entry point, config
   Translations.cs        English strings
-  Content/Firearms.cs    gun + ammo stats
   Content/Gear.cs        rigs, backpacks, secure containers
+  Content/WeaponParts.cs the weapon part catalogue
   Content/Hideout.cs     hideout and stash pieces, radius check
-  Content/LootDrops.cs   enemy ammo drops
-  Guns/                  firing, reload, recoil, ADS camera, bullets, HUD
-  Stash/                 Tetris inventory: layout, moves, Valheim hooks
-  Stash/UI/              the Tarkov screen: GEAR, CRAFTING, SKILLS, HEALTH tabs
-  Crafting/              crafting, upgrading and repairing without Valheim's panel
-  Raid/                  death rules, raid start / extract messages
+  Modding/               fitting parts, and applying them to weapon stats
+  Health/                bleeds, fractures, meds, status HUD
+  Raid/                  death rules, raid timer, threat, portal rule
+  Crafting/              crafting, upgrading, repairing (uses the stash)
+  Stash/                 Tetris inventory, hideout stash
+  Stash/UI/              the Tarkov screen: GEAR, CRAFTING, SKILLS, STATUS
 stubs/                   compile-check stand-ins for the game, BepInEx, uGUI
 ```
