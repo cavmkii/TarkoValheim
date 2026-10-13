@@ -40,6 +40,7 @@ namespace TarkoValheim.Raid
 
         private static int _announced;
         private float _nextWave;
+        private float _nextIntel;
 
         /// <summary>0 while calm or out of raid, up to <see cref="MaxThreat"/>.</summary>
         public static int Threat
@@ -51,7 +52,8 @@ namespace TarkoValheim.Raid
                     return 0;
                 }
                 float minutes = RaidTracker.RaidSeconds / 60f;
-                float calm = Plugin.CalmMinutes.Value;
+                float calm = Plugin.CalmMinutes.Value
+                    + Content.HideoutModules.Intel(Player.m_localPlayer) * Content.HideoutModules.IntelCalmMinutes;
                 if (minutes < calm)
                 {
                     return 0;
@@ -70,7 +72,9 @@ namespace TarkoValheim.Raid
                 {
                     return -1f;
                 }
-                float next = (Plugin.CalmMinutes.Value + threat * Plugin.ThreatStepMinutes.Value) * 60f;
+                float calm = Plugin.CalmMinutes.Value
+                    + Content.HideoutModules.Intel(Player.m_localPlayer) * Content.HideoutModules.IntelCalmMinutes;
+                float next = (calm + threat * Plugin.ThreatStepMinutes.Value) * 60f;
                 return Mathf.Max(0f, next - RaidTracker.RaidSeconds);
             }
         }
@@ -131,6 +135,13 @@ namespace TarkoValheim.Raid
                     return;
                 }
 
+                // Intel is read from home while you're away: remember it on the way out.
+                if (Time.time >= _nextIntel && Content.Hideout.IsNear(player.transform.position))
+                {
+                    _nextIntel = Time.time + 3f;
+                    Content.HideoutModules.RememberIntel(player);
+                }
+
                 if (threat != _announced)
                 {
                     if (threat > _announced && threat > 0)
@@ -170,6 +181,10 @@ namespace TarkoValheim.Raid
             }
 
             int count = WaveSize[threat];
+            if (Content.HideoutModules.Intel(player) >= 2)
+            {
+                player.Message(MessageHud.MessageType.Center, Localization.instance.Localize("$tv_msg_party_incoming"), 0, null, false);
+            }
             for (int i = 0; i < count; i++)
             {
                 var prefab = ZNetScene.instance.GetPrefab(names[Random.Range(0, names.Length)]);

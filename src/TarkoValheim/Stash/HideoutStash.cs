@@ -53,20 +53,19 @@ namespace TarkoValheim.Stash
                 return list;
             }
 
-            float radius = Plugin.HideoutRadius.Value;
-            var hideouts = new List<Vector3>();
+            var hideouts = new List<HideoutMarker>();
             foreach (var marker in HideoutMarker.Active)
             {
-                if (marker != null && (marker.transform.position - player.transform.position).sqrMagnitude <= radius * radius)
+                if (marker != null && marker.Covers(player.transform.position))
                 {
-                    hideouts.Add(marker.transform.position);
+                    hideouts.Add(marker);
                 }
             }
 
             All.RemoveWhere(c => c == null);
             foreach (var c in All)
             {
-                if (c == open || Eligible(player, c, hideouts, radius))
+                if (c == open || Eligible(player, c, hideouts))
                 {
                     list.Add(c);
                 }
@@ -84,7 +83,7 @@ namespace TarkoValheim.Stash
             return list;
         }
 
-        private static bool Eligible(Player player, Container c, List<Vector3> hideouts, float radius)
+        private static bool Eligible(Player player, Container c, List<HideoutMarker> hideouts)
         {
             if (!c.isActiveAndEnabled || c.GetInventory() == null)
             {
@@ -104,7 +103,7 @@ namespace TarkoValheim.Stash
             bool near = false;
             foreach (var h in hideouts)
             {
-                if ((c.transform.position - h).sqrMagnitude <= radius * radius)
+                if (h.Covers(c.transform.position))
                 {
                     near = true;
                     break;

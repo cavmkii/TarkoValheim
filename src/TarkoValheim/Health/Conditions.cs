@@ -39,6 +39,7 @@ namespace TarkoValheim.Health
 
         private static bool _ticking;
         private float _nextTick;
+        private float _fractureInHideout;
 
         public static void Patch(Harmony harmony)
         {
@@ -304,6 +305,8 @@ namespace TarkoValheim.Health
                 }
                 _nextTick = Time.time + 2f;
 
+                HideoutCare(player);
+
                 float max = player.GetMaxHealth();
                 float drain = 0f;
                 if (Has(player, Condition.HeavyBleed))
@@ -322,6 +325,46 @@ namespace TarkoValheim.Health
             catch (System.Exception e)
             {
                 GameAccess.WarnOnce("Conditions.Update", e);
+            }
+        }
+
+        // The Medstation looks after you at home: bleeds stop (level 1),
+        // fractures mend after a minute (level 2), health comes back faster
+        // (level 3). Runs every 2 seconds.
+        private void HideoutCare(Player player)
+        {
+            int med = Content.HideoutModules.LevelAt(player.transform.position, Content.ModuleId.Medstation);
+            if (med <= 0)
+            {
+                _fractureInHideout = 0f;
+                return;
+            }
+
+            if (Has(player, Condition.LightBleed) || Has(player, Condition.HeavyBleed))
+            {
+                Set(player, Condition.LightBleed, false);
+                Set(player, Condition.HeavyBleed, false);
+                player.Message(MessageHud.MessageType.TopLeft, Localization.instance.Localize("$tv_msg_medstation_bleed"), 0, null, false);
+            }
+
+            if (med >= 2 && Has(player, Condition.Fracture))
+            {
+                _fractureInHideout += 2f;
+                if (_fractureInHideout >= 60f)
+                {
+                    Set(player, Condition.Fracture, false);
+                    _fractureInHideout = 0f;
+                    player.Message(MessageHud.MessageType.TopLeft, Localization.instance.Localize("$tv_msg_medstation_fracture"), 0, null, false);
+                }
+            }
+            else
+            {
+                _fractureInHideout = 0f;
+            }
+
+            if (med >= 3 && player.GetHealth() < player.GetMaxHealth())
+            {
+                player.Heal(player.GetMaxHealth() * 0.01f, false);
             }
         }
 

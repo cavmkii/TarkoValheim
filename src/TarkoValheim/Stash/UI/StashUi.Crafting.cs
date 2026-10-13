@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TarkoValheim.Content;
 using TarkoValheim.Crafting;
 using TarkoValheim.Util;
 using UnityEngine.UI;
@@ -10,7 +11,8 @@ namespace TarkoValheim.Stash.UI
     internal enum CraftMode
     {
         Craft,
-        Upgrade
+        Upgrade,
+        Hideout
     }
 
     /// <summary>
@@ -34,8 +36,29 @@ namespace TarkoValheim.Stash.UI
         private RectTransform _craftFill;
         private Text _craftPercent;
 
+        // A hideout module being built, if any (shares the progress popup).
+        private ModuleSpec _buildModule;
+        private HideoutMarker _buildBench;
+
         private void BuildCrafting(Player player, CraftingStation station)
         {
+            var bench = HideoutModules.BenchOf(station);
+            if (_craftMode == CraftMode.Hideout && bench == null)
+            {
+                _craftMode = CraftMode.Craft;
+            }
+            int readyModules = 0;
+            if (bench != null)
+            {
+                foreach (var m in HideoutModules.All)
+                {
+                    if (HideoutModules.CanBuild(player, bench, m))
+                    {
+                        readyModules++;
+                    }
+                }
+            }
+
             var all = CraftService.Entries(player);
             var entries = all.FindAll(e => (e.Upgrade != null) == (_craftMode == CraftMode.Upgrade));
             int readyCraft = all.FindAll(e => e.Upgrade == null && e.CanCraft).Count;
@@ -56,24 +79,23 @@ namespace TarkoValheim.Stash.UI
                 _craftUpgrade = selected.Upgrade;
             }
 
-            BuildRecipeList(player, station, entries, selected, readyCraft, readyUpgrade, 40f, 760f);
+            var counts = new[] { readyCraft, readyUpgrade, readyModules };
+            if (_craftMode == CraftMode.Hideout)
+            {
+                var col = CraftHeader(player, station, bench, counts, 40f, 760f, out float top);
+                BuildModuleList(player, bench, col, top, 760f);
+                BuildModuleDetail(player, bench, 840f, 1040f);
+                return;
+            }
+            BuildRecipeList(player, station, bench, entries, selected, counts, 40f, 760f);
             BuildRecipeDetail(player, station, selected, 840f, 1040f);
         }
 
-        private void BuildRecipeList(Player player, CraftingStation station, List<CraftEntry> entries, CraftEntry selected,
-            int readyCraft, int readyUpgrade, float x, float w)
+        private void BuildRecipeList(Player player, CraftingStation station, HideoutMarker bench, List<CraftEntry> entries,
+            CraftEntry selected, int[] counts, float x, float w)
         {
-            var col = UiKit.Rect("Recipes", _frame);
+            var col = CraftHeader(player, station, bench, counts, x, w, out float y);
             float h = FrameH - BodyTop - 30f;
-            UiKit.TopLeft(col, x, BodyTop, w, h);
-
-            string title = station != null
-                ? UiKit.L(GameAccess.GetStationName(station)).ToUpperInvariant()
-                : UiKit.L("$tv_ui_hand_crafting");
-            string level = station != null ? $"{UiKit.L("$tv_ui_level")} {GameAccess.StationLevel(station)}" : "";
-            UiKit.Header(col, title, level, 0f, 0f, w);
-
-            float y = 30f;
             int craftable = 0;
             foreach (var e in entries)
             {
@@ -82,43 +104,6 @@ namespace TarkoValheim.Stash.UI
                     craftable++;
                 }
             }
-            // CRAFT | UPGRADE, each with how many are ready now.
-            var modes = new[] { CraftMode.Craft, CraftMode.Upgrade };
-            for (int i = 0; i < modes.Length; i++)
-            {
-                var mode = modes[i];
-                int ready = mode == CraftMode.Craft ? readyCraft : readyUpgrade;
-                string label = UiKit.L(mode == CraftMode.Craft ? "$tv_ui_sub_craft" : "$tv_ui_sub_upgrade") + (ready > 0 ? $"  ({ready})" : "");
-                var tab = UiKit.Button(col, "Mode_" + mode, label, () =>
-                {
-                    if (_craftMode != mode)
-                    {
-                        _craftMode = mode;
-                        _craftSelection = null;
-                        _craftUpgrade = null;
-                        _savedScroll.Remove("recipes");
-                        MarkDirty();
-                    }
-                }, _craftMode == mode, 15);
-                UiKit.TopLeft((RectTransform)tab.transform, i * 184f, y, 180f, 32f);
-            }
-
-            if (station != null)
-            {
-                int broken = CraftService.Repairable(player).Count;
-                var repair = UiKit.Button(col, "RepairAll", string.Format(UiKit.L("$tv_ui_repair_all"), broken), () =>
-                {
-                    int n = CraftService.RepairAll(player);
-                    if (n > 0)
-                    {
-                        player.Message(MessageHud.MessageType.Center, string.Format(UiKit.L("$tv_msg_repaired"), n), 0, null, false);
-                    }
-                    MarkDirty();
-                }, broken > 0, 14);
-                ((Button)repair).interactable = broken > 0;
-                UiKit.TopLeft((RectTransform)repair.transform, w - 210f, y + 2f, 210f, 28f);
-            }
-            y += 40f;
 
             var summary = UiKit.Text(col, "Summary",
                 string.Format(UiKit.L(_craftMode == CraftMode.Craft ? "$tv_ui_recipes_summary" : "$tv_ui_upgrades_summary"), entries.Count, craftable),
@@ -139,6 +124,65 @@ namespace TarkoValheim.Stash.UI
             {
                 RecipeRow(content, entries[i], entries[i] == selected, i * (rowH + 4f), w, rowH);
             }
+        }
+
+        /// <summary>Station header, the sub-tabs and REPAIR ALL. Returns the
+        /// column and where the content below starts.</summary>
+        private RectTransform CraftHeader(Player player, CraftingStation station, HideoutMarker bench, int[] counts,
+            float x, float w, out float contentTop)
+        {
+            var col = UiKit.Rect("Recipes", _frame);
+            float h = FrameH - BodyTop - 30f;
+            UiKit.TopLeft(col, x, BodyTop, w, h);
+
+            string title = station != null
+                ? UiKit.L(GameAccess.GetStationName(station)).ToUpperInvariant()
+                : UiKit.L("$tv_ui_hand_crafting");
+            string level = station != null ? $"{UiKit.L("$tv_ui_level")} {GameAccess.StationLevel(station)}" : "";
+            UiKit.Header(col, title, level, 0f, 0f, w);
+
+            float y = 30f;
+
+            // CRAFT | UPGRADE (| HIDEOUT at a Hideout bench), with how many are ready.
+            var modes = bench != null
+                ? new[] { CraftMode.Craft, CraftMode.Upgrade, CraftMode.Hideout }
+                : new[] { CraftMode.Craft, CraftMode.Upgrade };
+            for (int i = 0; i < modes.Length; i++)
+            {
+                var mode = modes[i];
+                int ready = counts[(int)mode];
+                string label = UiKit.L("$tv_ui_sub_" + mode.ToString().ToLowerInvariant()) + (ready > 0 ? $"  ({ready})" : "");
+                var tab = UiKit.Button(col, "Mode_" + mode, label, () =>
+                {
+                    if (_craftMode != mode)
+                    {
+                        _craftMode = mode;
+                        _craftSelection = null;
+                        _craftUpgrade = null;
+                        _savedScroll.Remove("recipes");
+                        MarkDirty();
+                    }
+                }, _craftMode == mode, 15);
+                UiKit.TopLeft((RectTransform)tab.transform, i * 164f, y, 160f, 32f);
+            }
+
+            if (station != null && _craftMode != CraftMode.Hideout)
+            {
+                int broken = CraftService.Repairable(player).Count;
+                var repair = UiKit.Button(col, "RepairAll", string.Format(UiKit.L("$tv_ui_repair_all"), broken), () =>
+                {
+                    int n = CraftService.RepairAll(player);
+                    if (n > 0)
+                    {
+                        player.Message(MessageHud.MessageType.Center, string.Format(UiKit.L("$tv_msg_repaired"), n), 0, null, false);
+                    }
+                    MarkDirty();
+                }, broken > 0, 14);
+                ((Button)repair).interactable = broken > 0;
+                UiKit.TopLeft((RectTransform)repair.transform, w - 210f, y + 2f, 210f, 28f);
+            }
+            contentTop = y + 40f;
+            return col;
         }
 
         private void RecipeRow(RectTransform parent, CraftEntry entry, bool selected, float y, float w, float h)
@@ -194,6 +238,11 @@ namespace TarkoValheim.Stash.UI
                 state = UiKit.L("$tv_ui_can_craft");
                 stateColor = new Color(0.5f, 0.83f, 0.42f);
             }
+            else if (!entry.GateOk)
+            {
+                state = $"{UiKit.L("$tv_ui_needs")} {UiKit.L("$tv_module_" + entry.GateModule.ToString().ToLowerInvariant()).ToUpperInvariant()} {entry.GateLevel}";
+                stateColor = UiKit.Accent;
+            }
             else if (!entry.StationOk)
             {
                 state = $"{UiKit.L("$tv_ui_needs_level")} {entry.StationLevelNeeded}";
@@ -247,6 +296,11 @@ namespace TarkoValheim.Stash.UI
                 string need = $"{UiKit.L("$tv_ui_requires")} {stationName} {UiKit.L("$tv_ui_level")} {entry.StationLevelNeeded}";
                 sub += (sub.Length > 0 ? "\n" : "") + (entry.StationOk ? need : $"<color=#e39b3b>{need}</color>");
             }
+            if (entry.Gated)
+            {
+                string gate = $"{UiKit.L("$tv_ui_requires")} {UiKit.L("$tv_module_" + entry.GateModule.ToString().ToLowerInvariant())} {UiKit.L("$tv_ui_level")} {entry.GateLevel}";
+                sub += (sub.Length > 0 ? "\n" : "") + (entry.GateOk ? gate : $"<color=#e39b3b>{gate}</color>");
+            }
             var subText = UiKit.Text(col, "Sub", sub, 15, UiKit.Label);
             UiKit.TopLeft(subText.rectTransform, 190f, 80f, w - 210f, 60f);
 
@@ -297,7 +351,7 @@ namespace TarkoValheim.Stash.UI
                 ry += 48f;
             }
 
-            bool busy = _crafting != null;
+            bool busy = _crafting != null || _buildModule != null;
             string action = UiKit.L(busy ? "$tv_ui_crafting_busy" : entry.Upgrade != null ? "$tv_ui_upgrade_button" : "$tv_ui_craft_button");
             var craft = UiKit.Button(col, "Craft", action, () => StartCraft(player, entry, station), entry.CanCraft && !busy, 20);
             ((Button)craft).interactable = entry.CanCraft && !busy;
@@ -309,12 +363,12 @@ namespace TarkoValheim.Stash.UI
 
         private void StartCraft(Player player, CraftEntry entry, CraftingStation station)
         {
-            if (_crafting != null || entry == null || !entry.CanCraft)
+            if (_crafting != null || _buildModule != null || entry == null || !entry.CanCraft)
             {
                 return;
             }
 
-            float seconds = Plugin.CraftSeconds.Value * (entry.Upgrade != null ? 1.5f : 1f);
+            float seconds = Plugin.CraftSeconds.Value * (entry.Upgrade != null ? 1.5f : 1f) * WorkshopSpeed(player);
             if (seconds <= 0.01f)
             {
                 FinishCraft(player, entry);
@@ -325,14 +379,20 @@ namespace TarkoValheim.Stash.UI
             _craftingAt = station;
             _craftStart = Time.time;
             _craftDuration = seconds;
-            BuildCraftPopup(entry);
+            string name = UiKit.L(entry.Item.m_shared.m_name);
+            if (entry.Upgrade != null)
+            {
+                name += $"  <color=#8a8a84>{entry.Quality - 1} > {entry.Quality}</color>";
+            }
+            BuildCraftPopup((entry.Upgrade ?? entry.Item).GetIcon(),
+                UiKit.L(entry.Upgrade != null ? "$tv_ui_upgrading" : "$tv_ui_crafting_now"), name);
             MarkDirty();
         }
 
         /// <summary>Called every frame from Update while the screen is open.</summary>
         private void UpdateCraft(Player player, CraftingStation station)
         {
-            if (_crafting == null)
+            if (_crafting == null && _buildModule == null)
             {
                 return;
             }
@@ -355,8 +415,17 @@ namespace TarkoValheim.Stash.UI
             if (p >= 1f)
             {
                 var entry = _crafting;
+                var module = _buildModule;
+                var bench = _buildBench;
                 CancelCraft();
-                FinishCraft(player, entry);
+                if (module != null)
+                {
+                    FinishModule(player, bench, module);
+                }
+                else
+                {
+                    FinishCraft(player, entry);
+                }
             }
         }
 
@@ -388,16 +457,18 @@ namespace TarkoValheim.Stash.UI
             _craftPopup = null;
             _craftFill = null;
             _craftPercent = null;
-            if (_crafting != null)
+            if (_crafting != null || _buildModule != null)
             {
                 _crafting = null;
+                _buildModule = null;
+                _buildBench = null;
                 MarkDirty();
             }
         }
 
         // Lives on the canvas root, not the rebuilt content, so screen
         // rebuilds during the wait don't touch it.
-        private void BuildCraftPopup(CraftEntry entry)
+        private void BuildCraftPopup(Sprite iconSprite, string verb, string name)
         {
             const float w = 560f;
             const float h = 150f;
@@ -413,16 +484,10 @@ namespace TarkoValheim.Stash.UI
             var iconBg = UiKit.Image(_craftPopup, "IconBg", UiKit.CellBg, false);
             UiKit.TopLeft(iconBg.rectTransform, 16f, 16f, 90f, 90f);
             var icon = UiKit.Image(iconBg.transform, "Icon", Color.white, false);
-            icon.sprite = (entry.Upgrade ?? entry.Item).GetIcon();
+            icon.sprite = iconSprite;
             icon.preserveAspect = true;
             UiKit.Stretch(icon.rectTransform, 8f);
 
-            string verb = UiKit.L(entry.Upgrade != null ? "$tv_ui_upgrading" : "$tv_ui_crafting_now");
-            string name = UiKit.L(entry.Item.m_shared.m_name);
-            if (entry.Upgrade != null)
-            {
-                name += $"  <color=#8a8a84>{entry.Quality - 1} > {entry.Quality}</color>";
-            }
             var title = UiKit.Text(_craftPopup, "Title", $"<color=#e39b3b>{verb}</color>  {name}", 18, Color.white, TextAnchor.MiddleLeft);
             UiKit.TopLeft(title.rectTransform, 122f, 18f, w - 140f, 28f);
 
@@ -440,6 +505,13 @@ namespace TarkoValheim.Stash.UI
 
             var cancel = UiKit.Button(_craftPopup, "Cancel", UiKit.L("$tv_ui_cancel"), CancelCraft, false, 14);
             UiKit.TopLeft((RectTransform)cancel.transform, w - 138f, 94f, 120f, 36f);
+        }
+    
+        /// <summary>Workshop: crafting in the hideout is 25% faster per level.</summary>
+        private static float WorkshopSpeed(Player player)
+        {
+            int level = HideoutModules.LevelAt(player.transform.position, ModuleId.Workshop);
+            return Mathf.Max(0.25f, 1f - 0.25f * level);
         }
     }
 }
