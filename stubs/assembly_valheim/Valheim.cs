@@ -309,6 +309,7 @@ public class ZNetView : MonoBehaviour
     public bool IsValid() { throw null; }
     public bool IsOwner() { throw null; }
     public void ClaimOwnership() { }
+    public ZDO GetZDO() { throw null; }
 }
 
 public class CharacterDrop : MonoBehaviour
@@ -363,4 +364,10 @@ public class Heightmap : MonoBehaviour
         None = 0, Meadows = 1, Swamp = 2, Mountain = 4, BlackForest = 8, Plains = 16,
         AshLands = 32, DeepNorth = 64, Ocean = 256, Mistlands = 512
     }
+}
+
+public class ZDO
+{
+    public int GetInt(int hash, int defaultValue = 0) { throw null; }
+    public void Set(int hash, int value, bool okForNotOwner = false) { }
 }

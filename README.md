@@ -80,6 +80,30 @@ its slots, or drop a part straight onto the weapon in any grid.
   an existing one outside does nothing. To portal out, build a forward
   hideout (FOB) with its own portal first.
 
+### Hideout modules
+
+The Hideout bench has its own CRAFTING options: rigs, packs, secure
+containers and meds, never vanilla workbench recipes. At the bench, CRAFTING
+also gets a third sub-tab, HIDEOUT, where you build and upgrade modules as in
+Tarkov's hideout.
+
+- **Per hideout.** Each hideout keeps its own module levels, stored on the
+  bench, so they save and sync with the world.
+- **Requirements.** Some levels need another module first.
+- **Materials.** These can come from the stash.
+- **Build time.** Building takes a while, with the same progress bar as
+  crafting.
+
+| Module | Levels | What it does |
+|---|---|---|
+| Workshop | 3 | Crafting in the hideout 25 / 50 / 75% faster. Unlocks the Scav pack and Beta (1); Carrier rig, Pilgrim pack and Gamma (2); Kappa (3) |
+| Medstation | 3 | Unlocks bandage, tourniquet and splint, and bleeding stops in the hideout (1). Painkillers and field kit, and fractures mend after a minute in the hideout (2). Surgical kit, and faster health regen in the hideout (3) |
+| Perimeter | 3 | Hideout radius +10 m per level, which widens the safe zone and stash area |
+| Intel center | 2 | Raids start with 3 / 6 more calm minutes. At 2, you're warned when a hunting party is sent |
+
+Intel is remembered from the last hideout you were in, since home isn't
+loaded while you're out.
+
 ### Hideout stash
 
 Inside a hideout, every chest within its radius is one shared stash, shown

@@ -18,7 +18,13 @@ namespace TarkoValheim.Crafting
         public bool StationOk;
         public bool HaveAll;
 
-        public bool CanCraft => StationOk && HaveAll;
+        // Hideout recipes locked behind a module level (Workshop, Medstation).
+        public bool Gated;
+        public ModuleId GateModule;
+        public int GateLevel;
+        public bool GateOk = true;
+
+        public bool CanCraft => StationOk && HaveAll && GateOk;
         public ItemDrop.ItemData Item => Recipe.m_item.m_itemData;
     }
 
@@ -103,6 +109,16 @@ namespace TarkoValheim.Crafting
                 StationOk = recipe.m_craftingStation == null || stationLevel >= needed
             };
             entry.HaveAll = HaveResources(player, recipe, quality);
+
+            if (upgrade == null && HideoutModules.TryGate(recipe.m_item.name, out var module, out int gateLevel))
+            {
+                var bench = HideoutModules.BenchOf(player.GetCurrentCraftingStation());
+                int have = bench != null ? bench.Level(module) : HideoutModules.LevelAt(player.transform.position, module);
+                entry.Gated = true;
+                entry.GateModule = module;
+                entry.GateLevel = gateLevel;
+                entry.GateOk = have >= gateLevel;
+            }
             return entry;
         }
 
@@ -125,6 +141,47 @@ namespace TarkoValheim.Crafting
         public static int Count(Player player, ItemDrop resource)
         {
             return resource == null ? 0 : Count(Sources(player), resource.m_itemData.m_shared.m_name);
+        }
+
+        /// <summary>How many of an item (by prefab name) the player and stash hold.</summary>
+        public static int CountPrefab(Player player, string prefab)
+        {
+            var go = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
+            var drop = go != null ? go.GetComponent<ItemDrop>() : null;
+            return drop == null ? 0 : Count(Sources(player), drop.m_itemData.m_shared.m_name);
+        }
+
+        /// <summary>Takes items by prefab name: carried ones first, then the stash.</summary>
+        public static void TakePrefab(Player player, string prefab, int amount)
+        {
+            var go = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
+            var drop = go != null ? go.GetComponent<ItemDrop>() : null;
+            if (drop == null)
+            {
+                return;
+            }
+            string name = drop.m_itemData.m_shared.m_name;
+            HideoutStash.Claim(HideoutStash.Containers(player, null));
+            foreach (var inventory in Sources(player))
+            {
+                var matches = inventory.GetAllItems().FindAll(i => i.m_shared.m_name == name && !Loc.IsLocked(i) && !i.m_equipped);
+                matches.Sort((a, b) => a.m_quality.CompareTo(b.m_quality));
+                foreach (var item in matches)
+                {
+                    if (amount <= 0)
+                    {
+                        break;
+                    }
+                    int n = Mathf.Min(amount, item.m_stack);
+                    inventory.RemoveItem(item, n);
+                    amount -= n;
+                }
+                GameAccess.Changed(inventory);
+                if (amount <= 0)
+                {
+                    return;
+                }
+            }
         }
 
         private static int Count(List<Inventory> sources, string name)

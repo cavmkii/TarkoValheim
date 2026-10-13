@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.7.0";
+        public const string PluginVersion = "0.8.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;

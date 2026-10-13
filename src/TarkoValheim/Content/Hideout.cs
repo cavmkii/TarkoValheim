@@ -89,11 +89,9 @@ namespace TarkoValheim.Content
 
         public static bool IsNear(Vector3 position)
         {
-            float radius = Plugin.HideoutRadius.Value;
-            float sqr = radius * radius;
             foreach (var marker in HideoutMarker.Active)
             {
-                if ((marker.transform.position - position).sqrMagnitude <= sqr)
+                if (marker != null && marker.Covers(position))
                 {
                     return true;
                 }
@@ -111,6 +109,36 @@ namespace TarkoValheim.Content
         internal static readonly HashSet<HideoutMarker> Active = new HashSet<HideoutMarker>();
 
         private bool _needPin;
+        private readonly int[] _levels = new int[System.Enum.GetValues(typeof(ModuleId)).Length];
+        private float _nextRefresh;
+
+        /// <summary>This hideout's radius: the config value plus its Perimeter.</summary>
+        public float Radius => Plugin.HideoutRadius.Value + Level(ModuleId.Perimeter) * HideoutModules.PerimeterStep;
+
+        public bool Covers(Vector3 pos)
+        {
+            float r = Radius;
+            return (transform.position - pos).sqrMagnitude <= r * r;
+        }
+
+        /// <summary>Module level, cached (it's read every frame by the radius check).</summary>
+        public int Level(ModuleId id)
+        {
+            if (Time.time >= _nextRefresh)
+            {
+                Refresh();
+            }
+            return _levels[(int)id];
+        }
+
+        public void Refresh()
+        {
+            _nextRefresh = Time.time + 2f;
+            foreach (ModuleId id in System.Enum.GetValues(typeof(ModuleId)))
+            {
+                _levels[(int)id] = HideoutModules.LevelOf(this, id);
+            }
+        }
 
         private void Start()
         {
