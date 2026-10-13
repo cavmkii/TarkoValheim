@@ -419,6 +419,66 @@ namespace TarkoValheim.Util
             return upgrader == idol;
         }
 
+        /// <summary>
+        /// Adds a saved pin to the local map unless one with this name is
+        /// already within a few metres. All by reflection: AddPin's
+        /// parameter list has changed between game versions. Returns false
+        /// if the map isn't ready yet (try again later).
+        /// </summary>
+        public static bool AddMapPin(Vector3 pos, string name, string pinType)
+        {
+            try
+            {
+                var type = AccessTools.TypeByName("Minimap");
+                var map = type != null ? AccessTools.Property(type, "instance")?.GetValue(null, null) : null;
+                if (map == null)
+                {
+                    return false;
+                }
+
+                if (AccessTools.Field(type, "m_pins")?.GetValue(map) is System.Collections.IEnumerable pins)
+                {
+                    foreach (var pin in pins)
+                    {
+                        var pt = pin.GetType();
+                        if (AccessTools.Field(pt, "m_pos")?.GetValue(pin) is Vector3 p
+                            && AccessTools.Field(pt, "m_name")?.GetValue(pin) as string == name
+                            && (p - pos).sqrMagnitude < 25f)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                MethodInfo add = null;
+                foreach (var m in AccessTools.GetDeclaredMethods(type))
+                {
+                    var ps = m.GetParameters();
+                    if (m.Name == "AddPin" && ps.Length >= 4 && ps[0].ParameterType == typeof(Vector3)
+                        && (add == null || ps.Length < add.GetParameters().Length))
+                    {
+                        add = m;
+                    }
+                }
+                var pinTypeType = add?.GetParameters()[1].ParameterType;
+                if (add == null || pinTypeType == null || !pinTypeType.IsEnum)
+                {
+                    WarnOnce("AddMapPin", new MissingMethodException("Minimap.AddPin"));
+                    return true;
+                }
+
+                object kind = Enum.IsDefined(pinTypeType, pinType) ? Enum.Parse(pinTypeType, pinType) : Enum.GetValues(pinTypeType).GetValue(0);
+                // (pos, type, name, save, isChecked, ...defaults)
+                Call(add, map, pos, kind, name, true, false);
+                return true;
+            }
+            catch (Exception e)
+            {
+                WarnOnce("AddMapPin", e);
+                return true;
+            }
+        }
+
         public static bool RequireOnlyOneIngredient(Recipe recipe) => Get(RecipeOnlyOne, recipe, false);
 
         public static GameObject FindHitObject(Collider collider)

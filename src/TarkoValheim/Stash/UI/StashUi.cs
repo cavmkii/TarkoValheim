@@ -881,6 +881,18 @@ namespace TarkoValheim.Stash.UI
                 }
             }
 
+            if (Crafting.Dismantle.BatchSize(Player.m_localPlayer, item) > 0)
+            {
+                Add("$tv_menu_dismantle", null, () =>
+                {
+                    if (Crafting.Dismantle.Run(Player.m_localPlayer, item, from))
+                    {
+                        Player.m_localPlayer.Message(MessageHud.MessageType.TopLeft,
+                            $"{UiKit.L("$tv_msg_dismantled")} {UiKit.L(item.m_shared.m_name)}", 0, null, false);
+                    }
+                });
+            }
+
             Add(locked ? "$tv_menu_unlock" : "$tv_menu_lock", "MMB", () =>
             {
                 Loc.SetLocked(item, !locked);

@@ -64,6 +64,8 @@ its slots, or drop a part straight onto the weapon in any grid.
 ### Raids
 
 - **Raid area.** Anywhere outside a Hideout bench's radius is raid.
+- **Hideout pins.** Every Hideout bench puts a pin on your map
+  (`Raid/HideoutMapPins`).
 - **Death in raid.** You lose everything except what's in your secure
   container (POUCH). In a hideout you die by normal rules.
 - **Threat rises with time.** The first 5 minutes are calm, so a quick run
@@ -87,6 +89,17 @@ on the right of the GEAR tab as one scrolling list.
   send an item to the first chest with room.
 - **Crafting.** Crafting in the hideout uses materials from the stash as
   well as what you carry.
+- **Building.** So does building with the hammer. What you carry is used
+  first, and the stash makes up the rest. The build menu's counts aren't
+  shown red when the stash covers them. Set `Crafting/BuildFromStash` to
+  false to turn this off.
+- **Dismantle.** Right-click > Dismantle, inside a hideout, breaks a crafted
+  item into what it was made from and puts that in the stash.
+  - Its upgrade costs come back too.
+  - A weapon built from parts gives back its actual parts, at their levels.
+  - Idols aren't returned.
+  - Worn rigs, packs and pouches have to be taken off first, and locked
+    items can't be dismantled.
 - **What's left out.** Carts, ships, graves, private chests that aren't
   yours, and chests another player has open don't count.
 

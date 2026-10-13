@@ -120,6 +120,8 @@ public class Recipe : ScriptableObject
 
 public class Piece : MonoBehaviour
 {
+    public Requirement[] m_resources;
+    public CraftingStation m_craftingStation;
     public class Requirement
     {
         public ItemDrop m_resItem;
