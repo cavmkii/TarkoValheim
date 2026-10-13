@@ -20,7 +20,9 @@ namespace TarkoValheim.Health
         public bool StopsHeavy;
         public bool FixesFracture;
         public float Painkiller;    // seconds
-        public float Heal;          // fraction of max health
+        public float Heal;          // fraction of max health, put into the treated part
+        public bool LimbsOnly;      // tourniquets and splints
+        public bool Revives;        // restores a destroyed part
         public RequirementConfig[] Requirements;
     }
 
@@ -42,12 +44,12 @@ namespace TarkoValheim.Health
             },
             new MedSpec
             {
-                Id = "TV_Tourniquet", IconFrom = "DeerHide", StopsLight = true, StopsHeavy = true, Stack = 5,
+                Id = "TV_Tourniquet", IconFrom = "DeerHide", StopsLight = true, StopsHeavy = true, Stack = 5, LimbsOnly = true,
                 Requirements = new[] { R("DeerHide", 1), R("LeatherScraps", 2), R("Resin", 2) }
             },
             new MedSpec
             {
-                Id = "TV_Splint", IconFrom = "RoundLog", FixesFracture = true, SizeH = 2, Stack = 5, Weight = 0.5f,
+                Id = "TV_Splint", IconFrom = "RoundLog", FixesFracture = true, SizeH = 2, Stack = 5, Weight = 0.5f, LimbsOnly = true,
                 Requirements = new[] { R("Wood", 3), R("LeatherScraps", 2) }
             },
             new MedSpec
@@ -62,7 +64,7 @@ namespace TarkoValheim.Health
             },
             new MedSpec
             {
-                Id = "TV_SurgicalKit", IconFrom = "Iron", StopsLight = true, StopsHeavy = true, FixesFracture = true,
+                Id = "TV_SurgicalKit", IconFrom = "Iron", StopsLight = true, StopsHeavy = true, FixesFracture = true, Revives = true,
                 Heal = 0.5f, SizeW = 2, Stack = 2, Weight = 1f,
                 Requirements = new[] { R("Iron", 2), R("LinenThread", 4), R("Honey", 3), R("Thistle", 2) }
             },
@@ -150,7 +152,10 @@ namespace TarkoValheim.Health
                     return true;
                 }
 
-                __result = Use(__instance, spec);
+                // Used without picking a part (double-click, hotkey): the part
+                // that needs it most.
+                var part = BestPart(__instance, spec);
+                __result = Treat(__instance, spec, part);
                 if (__result && inventory != null)
                 {
                     inventory.RemoveItem(item, 1);
@@ -164,38 +169,116 @@ namespace TarkoValheim.Health
             }
         }
 
-        private static bool Use(Player player, MedSpec spec)
+        /// <summary>Would this med do anything for this part?</summary>
+        public static bool WouldHelp(Player player, MedSpec spec, BodyPart part)
+        {
+            if (spec.Painkiller > 0f)
+            {
+                return true;
+            }
+            if (spec.LimbsOnly && !Body.IsLimb(part))
+            {
+                return false;
+            }
+            bool destroyed = Body.Destroyed(player, part);
+            return (spec.StopsHeavy && Conditions.Has(player, Condition.HeavyBleed, part))
+                || (spec.StopsLight && Conditions.Has(player, Condition.LightBleed, part))
+                || (spec.FixesFracture && Conditions.Has(player, Condition.Fracture, part))
+                || (spec.Revives && destroyed)
+                || (spec.Heal > 0f && !destroyed && Body.Percent(player, part) < 0.999f);
+        }
+
+        /// <summary>The part most in need of this med: heavy bleed, then light
+        /// bleed, fracture, destroyed, then the most hurt.</summary>
+        public static BodyPart BestPart(Player player, MedSpec spec)
+        {
+            BodyPart best = BodyPart.Thorax;
+            int bestRank = int.MaxValue;
+            float bestPct = 2f;
+            foreach (var p in Body.Parts)
+            {
+                if (!WouldHelp(player, spec, p))
+                {
+                    continue;
+                }
+                int rank = spec.StopsHeavy && Conditions.Has(player, Condition.HeavyBleed, p) ? 0
+                    : spec.StopsLight && Conditions.Has(player, Condition.LightBleed, p) ? 1
+                    : spec.FixesFracture && Conditions.Has(player, Condition.Fracture, p) ? 2
+                    : spec.Revives && Body.Destroyed(player, p) ? 3 : 4;
+                float pct = Body.Percent(player, p);
+                if (rank < bestRank || (rank == bestRank && pct < bestPct))
+                {
+                    best = p;
+                    bestRank = rank;
+                    bestPct = pct;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>Treats one part. Returns false (and uses nothing up) if
+        /// there was nothing for it to do.</summary>
+        public static bool Treat(Player player, MedSpec spec, BodyPart part)
         {
             bool did = false;
-            if (spec.StopsHeavy && Conditions.Has(player, Condition.HeavyBleed))
-            {
-                Conditions.Set(player, Condition.HeavyBleed, false);
-                did = true;
-            }
-            if (spec.StopsLight && Conditions.Has(player, Condition.LightBleed))
-            {
-                Conditions.Set(player, Condition.LightBleed, false);
-                did = true;
-            }
-            if (spec.FixesFracture && Conditions.Has(player, Condition.Fracture))
-            {
-                Conditions.Set(player, Condition.Fracture, false);
-                did = true;
-            }
             if (spec.Painkiller > 0f)
             {
                 Conditions.SetPainkiller(player, spec.Painkiller);
                 did = true;
             }
-            if (spec.Heal > 0f && player.GetHealth() < player.GetMaxHealth())
+            if (!spec.LimbsOnly || Body.IsLimb(part))
             {
-                player.Heal(player.GetMaxHealth() * spec.Heal, true);
-                did = true;
+                if (spec.StopsHeavy && Conditions.Has(player, Condition.HeavyBleed, part))
+                {
+                    Conditions.Set(player, Condition.HeavyBleed, part, false);
+                    did = true;
+                }
+                if (spec.StopsLight && Conditions.Has(player, Condition.LightBleed, part))
+                {
+                    Conditions.Set(player, Condition.LightBleed, part, false);
+                    did = true;
+                }
+                if (spec.FixesFracture && Conditions.Has(player, Condition.Fracture, part))
+                {
+                    Conditions.Set(player, Condition.Fracture, part, false);
+                    did = true;
+                }
+
+                bool destroyed = Body.Destroyed(player, part);
+                if ((spec.Revives && destroyed) || (spec.Heal > 0f && !destroyed))
+                {
+                    // Into the part first, then Valheim's health by the same amount.
+                    float amount = Mathf.Max(spec.Heal * player.GetMaxHealth(), spec.Revives ? Body.Max(player, part) * 0.3f : 0f);
+                    float took = Body.Heal(player, part, amount, spec.Revives);
+                    if (took > 0f)
+                    {
+                        player.Heal(took, true);
+                        did = true;
+                    }
+                }
             }
 
             player.Message(MessageHud.MessageType.Center,
-                Localization.instance.Localize(did ? "$tv_msg_treated" : "$tv_msg_nothing_to_treat"), 0, null, false);
+                did ? Localization.instance.Localize("$tv_msg_treated") + " - " + Localization.instance.Localize("$tv_part_" + part.ToString().ToLowerInvariant())
+                    : Localization.instance.Localize("$tv_msg_nothing_to_treat"), 0, null, false);
             return did;
+        }
+
+        /// <summary>Treats a part with a med item (dragged onto the body, or
+        /// from its menu); uses one up if it did anything.</summary>
+        public static bool TreatWith(Player player, ItemDrop.ItemData item, Inventory from, BodyPart part)
+        {
+            var spec = Find(Gear.PrefabName(item));
+            if (spec == null || player == null)
+            {
+                return false;
+            }
+            if (!Treat(player, spec, part))
+            {
+                return false;
+            }
+            from.RemoveItem(item, 1);
+            return true;
         }
 
         private static RequirementConfig R(string item, int amount)

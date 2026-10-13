@@ -88,11 +88,14 @@ namespace TarkoValheim.Stash.UI
 
         private void BuildStatus(Player player)
         {
-            float colW = 580f;
+            float colW = 560f;
+
+            // The body, Tarkov style, on the left.
+            BuildBody(player, 40f, 640f);
 
             // Vitals.
             var left = UiKit.Rect("Vitals", _frame);
-            UiKit.TopLeft(left, 40f, BodyTop, colW, 600f);
+            UiKit.TopLeft(left, 720f, BodyTop, colW, 600f);
             UiKit.Header(left, UiKit.L("$tv_ui_vitals"), "", 0f, 0f, colW);
             float y = 34f;
             UiKit.Bar(left, UiKit.L("$tv_ui_health"), player.GetHealth(), player.GetMaxHealth(),
@@ -116,23 +119,25 @@ namespace TarkoValheim.Stash.UI
             // Injuries and what treats them.
             UiKit.Header(left, UiKit.L("$tv_ui_injuries"), "", 0f, y, colW);
             y += 28f;
-            var conditions = Conditions.Active(player);
+            var conditions = Conditions.ActiveParts(player);
             if (conditions.Count == 0)
             {
                 var ok = UiKit.Text(left, "NoInjury", UiKit.L("$tv_ui_no_injuries"), 15, UiKit.Muted);
                 UiKit.TopLeft(ok.rectTransform, 0f, y, colW, 22f);
                 y += 26f;
             }
-            foreach (var c in conditions)
+            foreach (var cp in conditions)
             {
+                var c = cp.Key;
                 string key = c.ToString().ToLowerInvariant();
                 var row = UiKit.Image(left, "Injury", new Color(0.2f, 0.08f, 0.07f, 0.95f), false);
                 UiKit.TopLeft(row.rectTransform, 0f, y, colW, 40f);
-                var name = UiKit.Text(row.transform, "Name", UiKit.L("$tv_cond_" + key), 16,
+                var name = UiKit.Text(row.transform, "Name",
+                    $"{UiKit.L("$tv_cond_" + key)}  <color=#c8c2b2>{UiKit.L("$tv_part_" + cp.Value.ToString().ToLowerInvariant())}</color>", 15,
                     c == Condition.Fracture ? new Color(0.9f, 0.7f, 0.25f) : new Color(0.95f, 0.4f, 0.35f), TextAnchor.MiddleLeft);
-                UiKit.TopLeft(name.rectTransform, 10f, 0f, 220f, 40f);
-                var fix = UiKit.Text(row.transform, "Fix", UiKit.L("$tv_cond_fix_" + key), 13, UiKit.Label, TextAnchor.MiddleRight);
-                UiKit.TopLeft(fix.rectTransform, 230f, 0f, colW - 240f, 40f);
+                UiKit.TopLeft(name.rectTransform, 10f, 0f, 280f, 40f);
+                var fix = UiKit.Text(row.transform, "Fix", UiKit.L("$tv_cond_fix_" + key), 12, UiKit.Label, TextAnchor.MiddleRight);
+                UiKit.TopLeft(fix.rectTransform, 290f, 0f, colW - 300f, 40f);
                 y += 44f;
             }
             float pain = Conditions.PainkillerLeft(player);
@@ -144,6 +149,28 @@ namespace TarkoValheim.Stash.UI
                 y += 26f;
             }
             y += 10f;
+
+            // Meds you carry, to drag onto the body.
+            UiKit.Header(left, UiKit.L("$tv_ui_carried_meds"), "", 0f, y, colW);
+            y += 28f;
+            var inventory = player.GetInventory();
+            var meds = inventory.GetAllItems().FindAll(i => Meds.Find(Content.Gear.PrefabName(i)) != null);
+            if (meds.Count == 0)
+            {
+                var none = UiKit.Text(left, "NoMeds", UiKit.L("$tv_ui_no_meds"), 14, UiKit.Muted);
+                UiKit.TopLeft(none.rectTransform, 0f, y, colW, 22f);
+                y += 28f;
+            }
+            else
+            {
+                const float tile = 64f;
+                int perRow = Mathf.Max(1, Mathf.FloorToInt((colW + 6f) / (tile + 6f)));
+                for (int i = 0; i < meds.Count; i++)
+                {
+                    AddItemView(left, meds[i], inventory, (i % perRow) * (tile + 6f), y + (i / perRow) * (tile + 6f), tile, tile, false);
+                }
+                y += Mathf.CeilToInt(meds.Count / (float)perRow) * (tile + 6f) + 6f;
+            }
 
             // Raid.
             UiKit.Header(left, UiKit.L("$tv_ui_raid"), "", 0f, y, colW);
@@ -178,7 +205,7 @@ namespace TarkoValheim.Stash.UI
 
             // Food.
             var middle = UiKit.Rect("Food", _frame);
-            UiKit.TopLeft(middle, 670f, BodyTop, colW, 600f);
+            UiKit.TopLeft(middle, 1320f, BodyTop, colW, 600f);
             var foods = GameAccess.Foods(player);
             UiKit.Header(middle, UiKit.L("$tv_ui_food"), $"{foods.Count}/3", 0f, 0f, colW);
             y = 34f;
@@ -217,7 +244,7 @@ namespace TarkoValheim.Stash.UI
 
             // Status effects.
             var right = UiKit.Rect("Effects", _frame);
-            UiKit.TopLeft(right, 1300f, BodyTop, colW, 600f);
+            UiKit.TopLeft(right, 1320f, BodyTop + 400f, colW, 400f);
             var effects = GameAccess.StatusEffects(player);
             UiKit.Header(right, UiKit.L("$tv_ui_effects"), effects.Count.ToString(), 0f, 0f, colW);
             y = 34f;
@@ -240,11 +267,117 @@ namespace TarkoValheim.Stash.UI
                 var name = UiKit.Text(row.transform, "Name", UiKit.L(effect.Key), 16, Color.white, TextAnchor.MiddleLeft);
                 UiKit.TopLeft(name.rectTransform, 54f, 0f, colW - 64f, 48f);
                 y += 52f;
-                if (y > 860f)
+                if (y > 420f)
                 {
                     break;
                 }
             }
+        }
+    
+        // ------------------------------------------------------------------
+        // The body
+
+        // Layout on a 640 x 820 panel: rects for the figure (the player faces
+        // you, so their left arm is on your right), label plates around it.
+        private static readonly Dictionary<BodyPart, Rect> Shapes = new Dictionary<BodyPart, Rect>
+        {
+            { BodyPart.Head, new Rect(285f, 50f, 70f, 80f) },
+            { BodyPart.Thorax, new Rect(245f, 140f, 150f, 135f) },
+            { BodyPart.Stomach, new Rect(255f, 280f, 130f, 110f) },
+            { BodyPart.RightArm, new Rect(180f, 145f, 58f, 250f) },
+            { BodyPart.LeftArm, new Rect(402f, 145f, 58f, 250f) },
+            { BodyPart.RightLeg, new Rect(255f, 396f, 62f, 320f) },
+            { BodyPart.LeftLeg, new Rect(323f, 396f, 62f, 320f) },
+        };
+
+        private static readonly Dictionary<BodyPart, Vector2> Labels = new Dictionary<BodyPart, Vector2>
+        {
+            { BodyPart.Head, new Vector2(370f, 40f) },
+            { BodyPart.Thorax, new Vector2(240f, 165f) },
+            { BodyPart.Stomach, new Vector2(240f, 305f) },
+            { BodyPart.RightArm, new Vector2(10f, 230f) },
+            { BodyPart.LeftArm, new Vector2(470f, 230f) },
+            { BodyPart.RightLeg, new Vector2(70f, 520f) },
+            { BodyPart.LeftLeg, new Vector2(410f, 520f) },
+        };
+
+        private void BuildBody(Player player, float x, float w)
+        {
+            var col = UiKit.Rect("Body", _frame);
+            UiKit.TopLeft(col, x, BodyTop, w, 900f);
+            UiKit.Header(col, UiKit.L("$tv_ui_body"), "", 0f, 0f, w);
+
+            foreach (var part in Body.Parts)
+            {
+                var r = Shapes[part];
+                float pct = Body.Percent(player, part);
+                bool destroyed = Body.Destroyed(player, part);
+                var shape = UiKit.Image(col, "Part_" + part, PartColor(pct, destroyed));
+                UiKit.TopLeft(shape.rectTransform, r.x, r.y, r.width, r.height);
+                UiKit.Border(shape.transform, new Color(1f, 1f, 1f, 0.12f), 1f);
+                _targets.Add(new DropTarget { Rect = shape.rectTransform, BodyPart = (int)part });
+            }
+
+            foreach (var part in Body.Parts)
+            {
+                var at = Labels[part];
+                var plate = UiKit.Image(col, "Label_" + part, new Color(0.08f, 0.08f, 0.08f, 0.85f));
+                UiKit.TopLeft(plate.rectTransform, at.x, at.y, 160f, 58f);
+                UiKit.Border(plate.transform, new Color(1f, 1f, 1f, 0.1f), 1f);
+                var name = UiKit.Text(plate.transform, "Name", UiKit.L("$tv_part_" + part.ToString().ToLowerInvariant()).ToUpperInvariant(),
+                    12, UiKit.Label, TextAnchor.UpperLeft);
+                UiKit.TopLeft(name.rectTransform, 6f, 3f, 150f, 16f);
+
+                float pct = Body.Percent(player, part);
+                bool destroyed = Body.Destroyed(player, part);
+                UiKit.Bar(plate.rectTransform, "", Body.Health(player, part), Body.Max(player, part), PartColor(pct, destroyed, 1f),
+                    6f, 20f, 148f, 16f);
+
+                // What's wrong with it.
+                var tags = new List<string>();
+                if (destroyed)
+                {
+                    tags.Add("<color=#e0604f>" + UiKit.L("$tv_tag_destroyed") + "</color>");
+                }
+                if (Conditions.Has(player, Condition.HeavyBleed, part))
+                {
+                    tags.Add("<color=#ff5a46>" + UiKit.L("$tv_tag_heavybleed") + "</color>");
+                }
+                else if (Conditions.Has(player, Condition.LightBleed, part))
+                {
+                    tags.Add("<color=#e0805f>" + UiKit.L("$tv_tag_lightbleed") + "</color>");
+                }
+                if (Conditions.Has(player, Condition.Fracture, part))
+                {
+                    tags.Add("<color=#e3b23b>" + UiKit.L("$tv_tag_fracture") + "</color>");
+                }
+                var tagText = UiKit.Text(plate.transform, "Tags", string.Join(" ", tags.ToArray()), 11, Color.white, TextAnchor.UpperLeft);
+                tagText.horizontalOverflow = HorizontalWrapMode.Overflow;
+                UiKit.TopLeft(tagText.rectTransform, 6f, 39f, 150f, 16f);
+
+                _targets.Add(new DropTarget { Rect = plate.rectTransform, BodyPart = (int)part });
+            }
+
+            var total = UiKit.Text(col, "Total",
+                $"<color=#7fd36b>+</color> {player.GetHealth():0}<size=22><color=#8a8a84> / {player.GetMaxHealth():0}</color></size>",
+                40, new Color(0.6f, 0.85f, 0.45f), TextAnchor.MiddleCenter);
+            UiKit.TopLeft(total.rectTransform, 0f, 730f, w, 56f);
+
+            var hint = UiKit.Text(col, "Hint", UiKit.L("$tv_ui_body_hint"), 13, UiKit.Muted, TextAnchor.MiddleCenter);
+            UiKit.TopLeft(hint.rectTransform, 0f, 790f, w, 40f);
+        }
+
+        private static Color PartColor(float pct, bool destroyed, float alpha = 0.7f)
+        {
+            if (destroyed)
+            {
+                return new Color(0.15f, 0.03f, 0.03f, alpha);
+            }
+            var c = pct > 0.5f
+                ? Color.Lerp(new Color(0.85f, 0.7f, 0.15f), new Color(0.25f, 0.6f, 0.2f), (pct - 0.5f) * 2f)
+                : Color.Lerp(new Color(0.75f, 0.15f, 0.1f), new Color(0.85f, 0.7f, 0.15f), pct * 2f);
+            c.a = alpha;
+            return c;
         }
     }
 }

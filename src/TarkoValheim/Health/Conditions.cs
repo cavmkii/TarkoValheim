@@ -15,14 +15,13 @@ namespace TarkoValheim.Health
     }
 
     /// <summary>
-    /// Tarkov-style injuries on top of Valheim's single health bar.
+    /// Tarkov-style injuries, per body part (see <see cref="Body"/>).
     ///
-    /// - Cutting and piercing hits can open a light or heavy bleed. Bleeds
-    ///   drain health until treated: a bandage stops a light bleed, a
-    ///   tourniquet stops either.
-    /// - Heavy blunt hits and bad falls can fracture a bone: much slower
-    ///   sprinting and a slower jog until splinted. Painkillers hide the
-    ///   effect for a few minutes without fixing it.
+    /// - Cutting and piercing hits can open a light or heavy bleed where they
+    ///   land. Bleeds drain that part until treated.
+    /// - Heavy blunt hits to an arm or leg, and bad falls, can fracture it.
+    ///   A broken or destroyed leg slows you down; a broken or destroyed arm
+    ///   makes attacks cost more stamina. Painkillers hide both for a while.
     ///
     /// The bigger the hit compared with your max health, the likelier. State
     /// lives in the player's saved data, so it survives logging out; death
@@ -39,6 +38,8 @@ namespace TarkoValheim.Health
 
         private static bool _ticking;
         private float _nextTick;
+        private float _nextReconcile;
+        private Player _migratedFor;
         private float _fractureInHideout;
 
         public static void Patch(Harmony harmony)
@@ -69,6 +70,12 @@ namespace TarkoValheim.Health
                 }
             }
 
+            var stamina = AccessTools.Method(typeof(Attack), "GetAttackStamina");
+            if (stamina != null)
+            {
+                harmony.Patch(stamina, postfix: new HarmonyMethod(typeof(Conditions), nameof(AttackStaminaPostfix)));
+            }
+
             var death = AccessTools.Method(typeof(Player), "OnDeath");
             if (death != null)
             {
@@ -79,13 +86,28 @@ namespace TarkoValheim.Health
         // ------------------------------------------------------------------
         // State
 
+        private static string KeyOf(Condition c, BodyPart p) => KeyPrefix + c + "_" + p;
+
+        /// <summary>Anywhere on the body.</summary>
         public static bool Has(Player player, Condition c)
         {
-            var data = player != null ? GameAccess.CustomData(player) : null;
-            return data != null && data.ContainsKey(KeyPrefix + c);
+            foreach (var p in Body.Parts)
+            {
+                if (Has(player, c, p))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
-        public static void Set(Player player, Condition c, bool on)
+        public static bool Has(Player player, Condition c, BodyPart p)
+        {
+            var data = player != null ? GameAccess.CustomData(player) : null;
+            return data != null && data.ContainsKey(KeyOf(c, p));
+        }
+
+        public static void Set(Player player, Condition c, BodyPart p, bool on)
         {
             var data = player != null ? GameAccess.CustomData(player) : null;
             if (data == null)
@@ -94,11 +116,25 @@ namespace TarkoValheim.Health
             }
             if (on)
             {
-                data[KeyPrefix + c] = "1";
+                data[KeyOf(c, p)] = "1";
             }
             else
             {
-                data.Remove(KeyPrefix + c);
+                data.Remove(KeyOf(c, p));
+            }
+        }
+
+        /// <summary>Clears a condition everywhere.</summary>
+        public static void Set(Player player, Condition c, bool on)
+        {
+            if (on)
+            {
+                Set(player, c, c == Condition.Fracture ? BodyPart.LeftLeg : BodyPart.Thorax, true);
+                return;
+            }
+            foreach (var p in Body.Parts)
+            {
+                Set(player, c, p, false);
             }
         }
 
@@ -113,6 +149,40 @@ namespace TarkoValheim.Health
                 }
             }
             return list;
+        }
+
+        /// <summary>Every (condition, part) pair present.</summary>
+        public static List<KeyValuePair<Condition, BodyPart>> ActiveParts(Player player)
+        {
+            var list = new List<KeyValuePair<Condition, BodyPart>>();
+            foreach (Condition c in System.Enum.GetValues(typeof(Condition)))
+            {
+                foreach (var p in Body.Parts)
+                {
+                    if (Has(player, c, p))
+                    {
+                        list.Add(new KeyValuePair<Condition, BodyPart>(c, p));
+                    }
+                }
+            }
+            return list;
+        }
+
+        // Conditions saved before body parts existed: put them somewhere.
+        private static void Migrate(Player player)
+        {
+            var data = GameAccess.CustomData(player);
+            if (data == null)
+            {
+                return;
+            }
+            foreach (Condition c in System.Enum.GetValues(typeof(Condition)))
+            {
+                if (data.Remove(KeyPrefix + c))
+                {
+                    Set(player, c, c == Condition.Fracture ? BodyPart.LeftLeg : BodyPart.Thorax, true);
+                }
+            }
         }
 
         public static float PainkillerLeft(Player player)
@@ -146,6 +216,7 @@ namespace TarkoValheim.Health
                 Set(player, c, false);
             }
             SetPainkiller(player, 0f);
+            Body.Reset(player);
         }
 
         // ------------------------------------------------------------------
@@ -197,11 +268,16 @@ namespace TarkoValheim.Health
                 float frac = taken / max;
 
                 string type = HitTypeField != null ? HitTypeField.GetValue(hit)?.ToString() : null;
-                if (type == "Fall")
+                bool fall = type == "Fall";
+                var part = Body.Locate(player, hit, fall);
+                Body.Damage(player, part, taken);
+                CheckLethal(player);
+
+                if (fall)
                 {
                     if (frac >= 0.1f && Random.value < Mathf.Clamp(frac * 2.5f, 0f, 0.9f))
                     {
-                        Inflict(player, Condition.Fracture);
+                        Inflict(player, Condition.Fracture, part);
                     }
                     return;
                 }
@@ -222,16 +298,17 @@ namespace TarkoValheim.Health
 
                 if (frac >= 0.2f && Random.value < Mathf.Clamp((frac - 0.15f) * 2f, 0f, 0.5f) * cut)
                 {
-                    Inflict(player, Condition.HeavyBleed);
+                    Inflict(player, Condition.HeavyBleed, part);
                 }
                 else if (frac >= 0.06f && Random.value < Mathf.Clamp(frac * 2.5f, 0f, 0.6f) * cut)
                 {
-                    Inflict(player, Condition.LightBleed);
+                    Inflict(player, Condition.LightBleed, part);
                 }
 
-                if (frac >= 0.15f && Random.value < Mathf.Clamp((frac - 0.1f) * 1.5f, 0f, 0.45f) * crush)
+                // Only arms and legs break.
+                if (Body.IsLimb(part) && frac >= 0.15f && Random.value < Mathf.Clamp((frac - 0.1f) * 1.5f, 0f, 0.45f) * crush)
                 {
-                    Inflict(player, Condition.Fracture);
+                    Inflict(player, Condition.Fracture, part);
                 }
             }
             catch (System.Exception e)
@@ -240,15 +317,26 @@ namespace TarkoValheim.Health
             }
         }
 
-        private static void Inflict(Player player, Condition c)
+        private static void Inflict(Player player, Condition c, BodyPart part)
         {
-            if (Has(player, c))
+            if (Has(player, c, part))
             {
                 return;
             }
-            Set(player, c, true);
+            Set(player, c, part, true);
             player.Message(MessageHud.MessageType.Center,
-                Localization.instance.Localize("$tv_msg_" + c.ToString().ToLowerInvariant()), 0, null, false);
+                Localization.instance.Localize("$tv_msg_" + c.ToString().ToLowerInvariant()) + " - "
+                + Localization.instance.Localize("$tv_part_" + part.ToString().ToLowerInvariant()), 0, null, false);
+        }
+
+        // Tarkov: a destroyed head or thorax is death. Off by default.
+        private static void CheckLethal(Player player)
+        {
+            if (Plugin.LethalHeadThorax.Value && !player.IsDead()
+                && (Body.Destroyed(player, BodyPart.Head) || Body.Destroyed(player, BodyPart.Thorax)))
+            {
+                Bleed(player, player.GetHealth() + 10f);
+            }
         }
 
         private static void DeathPostfix(Player __instance)
@@ -262,9 +350,39 @@ namespace TarkoValheim.Health
         // ------------------------------------------------------------------
         // Effects
 
+        private static bool LimbHurts(Player player, BodyPart p)
+        {
+            return Has(player, Condition.Fracture, p) || Body.Destroyed(player, p);
+        }
+
         private static bool FractureHurts(Player player)
         {
-            return Plugin.HealthConditions.Value && Has(player, Condition.Fracture) && PainkillerLeft(player) <= 0f;
+            return Plugin.HealthConditions.Value && PainkillerLeft(player) <= 0f
+                && (LimbHurts(player, BodyPart.LeftLeg) || LimbHurts(player, BodyPart.RightLeg));
+        }
+
+        private static bool ArmHurts(Player player)
+        {
+            return Plugin.HealthConditions.Value && PainkillerLeft(player) <= 0f
+                && (LimbHurts(player, BodyPart.LeftArm) || LimbHurts(player, BodyPart.RightArm));
+        }
+
+        private static readonly FieldInfo AttackCharacter = AccessTools.Field(typeof(Attack), "m_character");
+
+        private static void AttackStaminaPostfix(Attack __instance, ref float __result)
+        {
+            try
+            {
+                var player = Player.m_localPlayer;
+                if (player != null && AttackCharacter != null && ReferenceEquals(AttackCharacter.GetValue(__instance), player) && ArmHurts(player))
+                {
+                    __result *= 1.5f;
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("Conditions.AttackStamina", e);
+            }
         }
 
         private static void RunPostfix(Player __instance, ref float __result)
@@ -299,6 +417,19 @@ namespace TarkoValheim.Health
                     SetPainkiller(player, pain - Time.deltaTime);
                 }
 
+                // Body parts follow Valheim's health (regeneration, poison...).
+                if (Time.time >= _nextReconcile)
+                {
+                    _nextReconcile = Time.time + 0.25f;
+                    if (_migratedFor != player)
+                    {
+                        _migratedFor = player;
+                        Migrate(player);
+                    }
+                    Body.Reconcile(player, SetHealth);
+                    Body.Save(player, false);
+                }
+
                 if (Time.time < _nextTick)
                 {
                     return;
@@ -307,19 +438,26 @@ namespace TarkoValheim.Health
 
                 HideoutCare(player);
 
+                // Each bleeding part loses health; heavy bleeds three times as fast.
                 float max = player.GetMaxHealth();
-                float drain = 0f;
-                if (Has(player, Condition.HeavyBleed))
+                foreach (var p in Body.Parts)
                 {
-                    drain += Mathf.Max(1f, max * 0.012f);
-                }
-                if (Has(player, Condition.LightBleed))
-                {
-                    drain += Mathf.Max(0.3f, max * 0.004f);
-                }
-                if (drain > 0f)
-                {
-                    Bleed(player, drain * 2f);
+                    float drain = 0f;
+                    if (Has(player, Condition.HeavyBleed, p))
+                    {
+                        drain += Mathf.Max(1f, max * 0.012f);
+                    }
+                    if (Has(player, Condition.LightBleed, p))
+                    {
+                        drain += Mathf.Max(0.3f, max * 0.004f);
+                    }
+                    if (drain > 0f && !player.IsDead())
+                    {
+                        float amount = Mathf.Min(drain * 2f, player.GetHealth());
+                        Body.Damage(player, p, amount);
+                        Bleed(player, drain * 2f);
+                        CheckLethal(player);
+                    }
                 }
             }
             catch (System.Exception e)
@@ -365,6 +503,15 @@ namespace TarkoValheim.Health
             if (med >= 3 && player.GetHealth() < player.GetMaxHealth())
             {
                 player.Heal(player.GetMaxHealth() * 0.01f, false);
+            }
+        }
+
+        private static void SetHealth(float health)
+        {
+            var player = Player.m_localPlayer;
+            if (player != null && SetHealthMethod != null)
+            {
+                SetHealthMethod.Invoke(player, new object[] { health });
             }
         }
 

@@ -62,6 +62,9 @@ namespace TarkoValheim.Stash.UI
         // "Drop on the ground" box.
         public bool Ground;
 
+        // A body part on the STATUS tab (BodyPart as int), for meds.
+        public int BodyPart = -1;
+
         // Weapon modding slot: which PartSlot, on which gun.
         public int ModSlot = -1;
         public ItemDrop.ItemData ModWeapon;
