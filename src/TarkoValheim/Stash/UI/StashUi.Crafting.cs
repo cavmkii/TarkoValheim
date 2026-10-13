@@ -8,6 +8,21 @@ using UnityEngine;
 
 namespace TarkoValheim.Stash.UI
 {
+    /// <summary>Groups for the crafting lists.</summary>
+    internal enum CraftCategory
+    {
+        All,
+        Weapons,
+        Tools,
+        Armor,
+        Gear,
+        Parts,
+        Ammo,
+        Consumables,
+        Materials,
+        Other
+    }
+
     internal enum CraftMode
     {
         Craft,
@@ -26,6 +41,7 @@ namespace TarkoValheim.Stash.UI
         private Recipe _craftSelection;
         private ItemDrop.ItemData _craftUpgrade;
         private CraftMode _craftMode = CraftMode.Craft;
+        private CraftCategory _craftCategory = CraftCategory.All;
 
         // The craft in progress, if any.
         private CraftEntry _crafting;
@@ -60,7 +76,35 @@ namespace TarkoValheim.Stash.UI
             }
 
             var all = CraftService.Entries(player);
-            var entries = all.FindAll(e => (e.Upgrade != null) == (_craftMode == CraftMode.Upgrade));
+            var modeEntries = all.FindAll(e => (e.Upgrade != null) == (_craftMode == CraftMode.Upgrade));
+
+            // Category: counts for the strip, then only the chosen one (in
+            // category order under ALL, keeping "ready first" within each).
+            var categoryCounts = new int[System.Enum.GetValues(typeof(CraftCategory)).Length];
+            foreach (var e in modeEntries)
+            {
+                categoryCounts[(int)CategoryOf(e)]++;
+            }
+            categoryCounts[0] = modeEntries.Count;
+            if (_craftCategory != CraftCategory.All && categoryCounts[(int)_craftCategory] == 0)
+            {
+                _craftCategory = CraftCategory.All;
+            }
+            var entries = new List<CraftEntry>();
+            foreach (CraftCategory cat in System.Enum.GetValues(typeof(CraftCategory)))
+            {
+                if (cat == CraftCategory.All || (_craftCategory != CraftCategory.All && cat != _craftCategory))
+                {
+                    continue;
+                }
+                foreach (var e in modeEntries)
+                {
+                    if (CategoryOf(e) == cat)
+                    {
+                        entries.Add(e);
+                    }
+                }
+            }
             int readyCraft = all.FindAll(e => e.Upgrade == null && e.CanCraft).Count;
             int readyUpgrade = all.FindAll(e => e.Upgrade != null && e.CanCraft).Count;
             CraftEntry selected = null;
@@ -87,14 +131,15 @@ namespace TarkoValheim.Stash.UI
                 BuildModuleDetail(player, bench, 840f, 1040f);
                 return;
             }
-            BuildRecipeList(player, station, bench, entries, selected, counts, 40f, 760f);
+            BuildRecipeList(player, station, bench, entries, selected, counts, categoryCounts, 40f, 760f);
             BuildRecipeDetail(player, station, selected, 840f, 1040f);
         }
 
         private void BuildRecipeList(Player player, CraftingStation station, HideoutMarker bench, List<CraftEntry> entries,
-            CraftEntry selected, int[] counts, float x, float w)
+            CraftEntry selected, int[] counts, int[] categoryCounts, float x, float w)
         {
             var col = CraftHeader(player, station, bench, counts, x, w, out float y);
+            y = CategoryStrip(col, categoryCounts, y, w);
             float h = FrameH - BodyTop - 30f;
             int craftable = 0;
             foreach (var e in entries)
@@ -118,12 +163,118 @@ namespace TarkoValheim.Stash.UI
                 return;
             }
 
+            // Under ALL, a heading starts each category.
             const float rowH = 58f;
-            var content = ScrollArea(col, "recipes", 0f, y, w, h - y, entries.Count * (rowH + 4f), out _);
-            for (int i = 0; i < entries.Count; i++)
+            const float headH = 28f;
+            bool headings = _craftCategory == CraftCategory.All;
+            float contentH = 0f;
+            var last = (CraftCategory)(-1);
+            foreach (var e in entries)
             {
-                RecipeRow(content, entries[i], entries[i] == selected, i * (rowH + 4f), w, rowH);
+                var cat = CategoryOf(e);
+                if (headings && cat != last)
+                {
+                    contentH += headH;
+                    last = cat;
+                }
+                contentH += rowH + 4f;
             }
+
+            var content = ScrollArea(col, "recipes", 0f, y, w, h - y, contentH, out _);
+            float ry = 0f;
+            last = (CraftCategory)(-1);
+            foreach (var e in entries)
+            {
+                var cat = CategoryOf(e);
+                if (headings && cat != last)
+                {
+                    UiKit.Header(content, UiKit.L("$tv_craftcat_" + cat.ToString().ToLowerInvariant()), categoryCounts[(int)cat].ToString(),
+                        0f, ry + 2f, w);
+                    ry += headH;
+                    last = cat;
+                }
+                RecipeRow(content, e, e == selected, ry, w, rowH);
+                ry += rowH + 4f;
+            }
+        }
+
+        /// <summary>ALL plus every category that has something in it, with
+        /// counts. Returns where the list starts.</summary>
+        private float CategoryStrip(RectTransform col, int[] counts, float y, float w)
+        {
+            var shown = new List<CraftCategory>();
+            foreach (CraftCategory cat in System.Enum.GetValues(typeof(CraftCategory)))
+            {
+                if (cat == CraftCategory.All || counts[(int)cat] > 0)
+                {
+                    shown.Add(cat);
+                }
+            }
+            const float gap = 4f;
+            const float chipH = 26f;
+            int perRow = Mathf.Min(shown.Count, 6);
+            float chipW = Mathf.Floor((w - (perRow - 1) * gap) / perRow);
+            for (int i = 0; i < shown.Count; i++)
+            {
+                var cat = shown[i];
+                string label = UiKit.L("$tv_craftcat_" + cat.ToString().ToLowerInvariant()) + "  " + counts[(int)cat];
+                var chip = UiKit.Button(col, "Cat_" + cat, label, () =>
+                {
+                    if (_craftCategory != cat)
+                    {
+                        _craftCategory = cat;
+                        _craftSelection = null;
+                        _craftUpgrade = null;
+                        _savedScroll.Remove("recipes");
+                        MarkDirty();
+                    }
+                }, _craftCategory == cat, 11);
+                UiKit.TopLeft((RectTransform)chip.transform, (i % perRow) * (chipW + gap), y + (i / perRow) * (chipH + gap), chipW, chipH);
+            }
+            int rows = Mathf.CeilToInt(shown.Count / (float)perRow);
+            return y + rows * (chipH + gap) + 4f;
+        }
+
+        private static CraftCategory CategoryOf(CraftEntry e) => CategoryOf(e.Item, e.Recipe.m_item.name);
+
+        /// <summary>The group an item is listed under. Recipe items are prefab
+        /// data with no drop prefab set, so the prefab name is passed in.</summary>
+        public static CraftCategory CategoryOf(ItemDrop.ItemData item, string prefab)
+        {
+            var type = item.m_shared.m_itemType;
+            string name = prefab ?? Content.Gear.PrefabName(item);
+            foreach (var gear in Content.Gear.All)
+            {
+                if (gear.Id == name)
+                {
+                    return CraftCategory.Gear;
+                }
+            }
+            if (Content.WeaponParts.Find(name) != null)
+            {
+                return CraftCategory.Parts;
+            }
+            if (Loadout.IsHandItem(item))
+            {
+                return Loadout.IsTool(item) ? CraftCategory.Tools : CraftCategory.Weapons;
+            }
+            if (Loadout.ArmorSlotFor(item, out _))
+            {
+                return CraftCategory.Armor;
+            }
+            if (type == ItemDrop.ItemData.ItemType.Ammo || type == ItemDrop.ItemData.ItemType.AmmoNonEquipable)
+            {
+                return CraftCategory.Ammo;
+            }
+            if (type == ItemDrop.ItemData.ItemType.Consumable)
+            {
+                return CraftCategory.Consumables;
+            }
+            if (type == ItemDrop.ItemData.ItemType.Material)
+            {
+                return CraftCategory.Materials;
+            }
+            return CraftCategory.Other;
         }
 
         /// <summary>Station header, the sub-tabs and REPAIR ALL. Returns the
