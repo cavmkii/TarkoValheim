@@ -105,6 +105,7 @@ namespace TarkoValheim.Stash.UI
                     }
                     CancelDrag();
                     CloseMenu();
+                    CancelCraft();
                     _modWeapon = null;
                     _wasVisible = false;
                     return;
@@ -125,6 +126,8 @@ namespace TarkoValheim.Stash.UI
                     Reconciler.Run(player);
                     _dirty = true;
                 }
+
+                UpdateCraft(player, station);
 
                 if (_dragView != null)
                 {

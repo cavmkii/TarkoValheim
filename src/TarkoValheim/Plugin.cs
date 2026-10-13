@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.6.1";
+        public const string PluginVersion = "0.6.2";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -36,6 +36,7 @@ namespace TarkoValheim
         internal static ConfigEntry<bool> PortalsOnlyInHideouts;
         internal static ConfigEntry<bool> HealthConditions;
         internal static ConfigEntry<bool> PartRecipes;
+        internal static ConfigEntry<float> CraftSeconds;
 
         internal static ConfigEntry<bool> TetrisInventory;
         internal static ConfigEntry<int> CellSize;
@@ -149,6 +150,10 @@ namespace TarkoValheim
                     "If true, weapons and shields made with metal are crafted from parts (head, grip, guard, wrap) " +
                     "instead of raw materials, and keep those parts. Takes effect on the next world load.",
                     null, admin));
+
+            CraftSeconds = Config.Bind("Crafting", "CraftSeconds", 2f,
+                new ConfigDescription("Seconds a craft takes (upgrades take half again as long). 0 crafts instantly.",
+                    new AcceptableValueRange<float>(0f, 30f)));
 
             HealthConditions = Config.Bind("Health", "BleedsAndFractures", true,
                 new ConfigDescription("If true, hits can cause bleeds and fractures that need treating.", null, admin));
