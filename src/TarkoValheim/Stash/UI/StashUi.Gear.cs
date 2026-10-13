@@ -72,17 +72,23 @@ namespace TarkoValheim.Stash.UI
                 SlotBox(col, lo, inventory, row1[i], i * (quarter + 10f), y, quarter, box);
             }
             y += box + 10f;
+            // Belt and armband, then the off-hand (shield or torch) taking the
+            // other half of the row.
             SlotBox(col, lo, inventory, SlotId.Belt, 0f, y, quarter, box);
             SlotBox(col, lo, inventory, SlotId.Trinket, quarter + 10f, y, quarter, box);
+            SlotBox(col, lo, inventory, SlotId.Melee, 2 * (quarter + 10f), y, 2 * quarter + 10f, box);
             y += box + 10f;
 
             SlotBox(col, lo, inventory, SlotId.Primary, 0f, y, w, box);
             y += box + 10f;
             SlotBox(col, lo, inventory, SlotId.Secondary, 0f, y, w, box);
             y += box + 10f;
-            float half = (w - 10f) / 2f;
-            SlotBox(col, lo, inventory, SlotId.Holster, 0f, y, half, box);
-            SlotBox(col, lo, inventory, SlotId.Melee, half + 10f, y, half, box);
+
+            // Three tool slots: hammer, pickaxe, hoe...
+            float third = (w - 20f) / 3f;
+            SlotBox(col, lo, inventory, SlotId.Holster, 0f, y, third, box);
+            SlotBox(col, lo, inventory, SlotId.Tool2, third + 10f, y, third, box);
+            SlotBox(col, lo, inventory, SlotId.Tool3, 2 * (third + 10f), y, third, box);
             y += box + 16f;
 
             UiKit.Header(col, UiKit.L("$tv_ui_vitals"), "", 0f, y, w);
@@ -139,6 +145,31 @@ namespace TarkoValheim.Stash.UI
             float box = Mathf.Round(cell * 2.4f);
             float y = 0f;
 
+            // Free space and SORT, which lays the rig, backpack and pockets out again.
+            int free = 0, total = 0;
+            foreach (var id in new[] { Loadout.RigGrid, Loadout.PackGrid, Loadout.Pockets })
+            {
+                if (lo.Grids.TryGetValue(id, out var g))
+                {
+                    var cap = Capacity(g).Split('/');
+                    total += int.Parse(cap[1]);
+                    free += int.Parse(cap[1]) - int.Parse(cap[0]);
+                }
+            }
+            var freeText = UiKit.Text(col, "Free", string.Format(UiKit.L("$tv_ui_free_cells"), free, total), 13, UiKit.Muted, TextAnchor.MiddleLeft);
+            UiKit.TopLeft(freeText.rectTransform, 0f, 0f, w - 130f, 26f);
+            var sort = UiKit.Button(col, "Sort", UiKit.L("$tv_ui_sort"), () =>
+            {
+                var player = Player.m_localPlayer;
+                if (player != null && !Reconciler.Sort(player))
+                {
+                    player.Message(MessageHud.MessageType.Center, UiKit.L("$tv_msg_sort_failed"), 0, null, false);
+                }
+                MarkDirty();
+            }, false, 13);
+            UiKit.TopLeft((RectTransform)sort.transform, w - 120f, 0f, 120f, 26f);
+            y += 34f;
+
             y = CarrySection(col, lo, inventory, SlotId.Rig, Loadout.RigGrid, "$tv_ui_rig", UiKit.Label, UiKit.CellBg, box, w, y);
 
             lo.Grids.TryGetValue(Loadout.Pockets, out var pockets);
@@ -156,8 +187,22 @@ namespace TarkoValheim.Stash.UI
 
             if (lo.Unplaced.Count > 0)
             {
-                UiKit.Header(col, UiKit.L("$tv_ui_unsorted"), lo.Unplaced.Count.ToString(), 0f, y, w, UiKit.Warning);
-                y += 28f;
+                UiKit.Header(col, UiKit.L("$tv_ui_unsorted"), "", 0f, y, w, UiKit.Warning);
+                var unplaced = new List<ItemDrop.ItemData>(lo.Unplaced);
+                var dropAll = UiKit.Button(col, "DropAll", UiKit.L("$tv_ui_drop_all"), () =>
+                {
+                    foreach (var item in unplaced)
+                    {
+                        StashOps.Drop(item, inventory, item.m_stack);
+                    }
+                    ReportError();
+                    MarkDirty();
+                }, false, 12);
+                UiKit.TopLeft((RectTransform)dropAll.transform, w - 110f, y + 1f, 110f, 20f);
+                y += 26f;
+                var why = UiKit.Text(col, "Why", UiKit.L("$tv_ui_unsorted_hint"), 12, UiKit.Muted);
+                UiKit.TopLeft(why.rectTransform, 0f, y, w, 18f);
+                y += 22f;
                 int perRow = Mathf.Max(1, Mathf.FloorToInt(w / cell));
                 for (int i = 0; i < lo.Unplaced.Count; i++)
                 {
@@ -439,13 +484,14 @@ namespace TarkoValheim.Stash.UI
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
             UiKit.TopLeft(label.rectTransform, x, QuickBarY - 16f, 400f, 16f);
 
-            var weapons = new[] { SlotId.Primary, SlotId.Secondary, SlotId.Holster, SlotId.Melee };
+            // Keys 1-6 are the hand slots (read-only here), 7-8 quick-use bindings.
+            var hands = Loadout.HandSlots;
             for (int i = 0; i < 8; i++)
             {
                 float bx = x + i * (size + 6f);
-                if (i < weapons.Length)
+                if (i < hands.Length)
                 {
-                    WeaponQuickBox(lo, weapons[i], i, bx, QuickBarY, size);
+                    WeaponQuickBox(lo, hands[i], i, bx, QuickBarY, size);
                 }
                 else
                 {
