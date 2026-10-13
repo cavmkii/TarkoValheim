@@ -61,6 +61,32 @@ its slots, or drop a part straight onto the weapon in any grid.
 - **Stats change in Valheim's own numbers.** Damage, durability, block, parry
   and attack stamina all change, so the vanilla tooltip shows the result.
 
+### Modular armor
+
+Helmets, chest pieces and leg armor take parts as well:
+
+| Slot | Made of | What it gives |
+|---|---|---|
+| Plates (helmet shell, greaves) | the five metals | armor, durability |
+| Padding (liner on helmets) | the five hides | a little armor, durability |
+| Straps | wraps (the same items weapons use) | lighter armor |
+
+- **Same rules as weapons.**
+  - Armor made with metal is crafted from its parts.
+  - Stats count against the standard build.
+  - Parts level up; armor no longer does.
+  - Older and looted armor gets standard parts fitted.
+- **Missing plates.** Armor with no plates loses most of its armor.
+- **Armor without metal keeps vanilla recipes.** Leather, troll and similar
+  armors are made as before.
+
+### What a part is for
+
+Every part shows small icons of what it fits, both in your grids and in
+the crafting list. A blade shows a sword and a knife; plates show a helmet,
+chest and legs. Grips say WEAPONS and wraps say ANY, since they fit almost
+everything.
+
 ### Raids
 
 - **Raid area.** Anywhere outside a Hideout bench's radius is raid.

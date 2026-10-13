@@ -121,6 +121,11 @@ namespace TarkoValheim.Stash.UI
             Line(sb, "$tv_stat_stamina", t.Stamina, true);
             Line(sb, "$tv_stat_block", t.Block, false);
             Line(sb, "$tv_stat_parry", t.Parry, false);
+            if (WeaponParts.IsArmor(WeaponMods.FamilyOf(weapon)))
+            {
+                Line(sb, "$tv_stat_armor", t.Armor, false);
+                Line(sb, "$tv_stat_weight", t.Weight, true);
+            }
             if (t.Spirit > 0f)
             {
                 sb.AppendLine($"<color=#7fd36b>{UiKit.L("$tv_stat_spirit")} +{t.Spirit * 100f:0}%</color>");
@@ -152,6 +157,11 @@ namespace TarkoValheim.Stash.UI
             Line(sb, "$tv_stat_stamina", part.At(part.Stamina, part.StaminaStep, level), true);
             Line(sb, "$tv_stat_block", part.At(part.Block, part.BlockStep, level), false);
             Line(sb, "$tv_stat_parry", part.At(part.Parry, part.ParryStep, level), false);
+            Line(sb, "$tv_stat_armor", part.At(part.Armor, part.ArmorStep, level), false);
+            if (part.WeightMod != 0f)
+            {
+                Line(sb, "$tv_stat_armor_weight", part.At(part.WeightMod, part.WeightStep, level), true);
+            }
             if (part.Spirit > 0f)
             {
                 sb.AppendLine($"<color=#7fd36b>{UiKit.L("$tv_stat_spirit")} +{part.At(part.Spirit, part.SpiritStep, level) * 100f:0}%</color>");

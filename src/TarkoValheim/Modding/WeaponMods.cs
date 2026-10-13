@@ -24,6 +24,8 @@ namespace TarkoValheim.Modding
         public float Parry;
         public float Spirit;
         public float Fire;
+        public float Armor;
+        public float Weight;
 
         /// <summary>Parts fitted.</summary>
         public int Count;
@@ -60,6 +62,7 @@ namespace TarkoValheim.Modding
         private const float NoHeadDamage = -0.75f;
         private const float NoHandleStamina = 0.3f;
         private const float NoHandleDurability = -0.3f;
+        private const float NoPlateArmor = -0.6f;
 
         /// <summary>Fits standard parts to a weapon seen for the first time.
         /// Returns true if it changed anything.</summary>
@@ -104,9 +107,12 @@ namespace TarkoValheim.Modding
             {
                 return WeaponFamily.None;
             }
-            if (item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Shield)
+            switch (item.m_shared.m_itemType)
             {
-                return WeaponFamily.Shield;
+                case ItemDrop.ItemData.ItemType.Shield: return WeaponFamily.Shield;
+                case ItemDrop.ItemData.ItemType.Helmet: return WeaponFamily.Helmet;
+                case ItemDrop.ItemData.ItemType.Chest: return WeaponFamily.Chest;
+                case ItemDrop.ItemData.ItemType.Legs: return WeaponFamily.Legs;
             }
             if (!item.IsWeapon())
             {
@@ -228,6 +234,12 @@ namespace TarkoValheim.Modding
                         t.Stamina += NoHandleStamina;
                         t.Durability += NoHandleDurability;
                     }
+                    if (!has && slot == PartSlot.Plate)
+                    {
+                        // Armor without its plates is mostly padding.
+                        t.Armor += NoPlateArmor;
+                        t.MissingHead = true;
+                    }
                 }
                 else if (has)
                 {
@@ -252,6 +264,8 @@ namespace TarkoValheim.Modding
             t.Parry += sign * p.At(p.Parry, p.ParryStep, l);
             t.Spirit += sign * (p.Spirit > 0f ? p.At(p.Spirit, p.SpiritStep, l) : 0f);
             t.Fire += sign * (p.Fire > 0f ? p.At(p.Fire, p.FireStep, l) : 0f);
+            t.Armor += sign * p.At(p.Armor, p.ArmorStep, l);
+            t.Weight += sign * p.At(p.WeightMod, p.WeightStep, l);
         }
 
         /// <summary>Puts a part from <paramref name="from"/> onto the weapon,

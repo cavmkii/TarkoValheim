@@ -5,7 +5,7 @@ using UnityEngine;
 namespace TarkoValheim.Content
 {
     /// <summary>
-    /// Weapons are assembled from parts. Each vanilla weapon recipe that uses
+    /// Weapons and armor are assembled from parts. Each vanilla recipe that uses
     /// metal is rewritten to take its standard build instead of raw materials:
     /// a head and guard of its metal, a grip of its wood, a wrap of its hide,
     /// one of each its family has. Anything else the recipe needed (eitr,
@@ -145,6 +145,12 @@ namespace TarkoValheim.Content
                         break;
                     case PartSlot.Guard:
                         part = WeaponParts.FindBy(PartSlot.Guard, HeadKind.None, metal);
+                        break;
+                    case PartSlot.Plate:
+                        part = WeaponParts.FindBy(PartSlot.Plate, HeadKind.None, metal);
+                        break;
+                    case PartSlot.Padding:
+                        part = WeaponParts.FindBy(PartSlot.Padding, HeadKind.None, Mathf.Max(1, hide));
                         break;
                     case PartSlot.Handle:
                         part = WeaponParts.FindBy(PartSlot.Handle, HeadKind.None, Mathf.Max(1, wood));
