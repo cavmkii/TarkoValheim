@@ -258,6 +258,9 @@ namespace TarkoValheim.Util
 
         public static string ContainerTitle(Container container) => Get(ContainerName, container, "");
 
+        /// <summary>The chest's own row count (its prefab's size), or 0.</summary>
+        public static int ContainerRows(Container container) => Get(ContainerHeight, container, 0);
+
         public static void SetContainer(Container container, string name, int width, int height)
         {
             Set(ContainerName, container, name);

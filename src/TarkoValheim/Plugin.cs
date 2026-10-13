@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.9.0";
+        public const string PluginVersion = "0.10.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -187,7 +187,9 @@ namespace TarkoValheim
 
             ContainerHeightFactor = Config.Bind("Inventory", "ContainerHeightFactor", 2,
                 new ConfigDescription(
-                    "Chests show this many Tetris rows per Valheim row, since items now take several cells.",
+                    "Chests get this many rows per Valheim row, since items now take several cells. A chest's real " +
+                    "inventory is grown to match, so every cell shown can be used. Only ever grows: lowering it, " +
+                    "or removing the mod, can lose items stored in the extra rows.",
                     new AcceptableValueRange<int>(1, 3), admin));
 
             SizeOverrides = Config.Bind("Inventory", "SizeOverrides", "",

@@ -4,9 +4,10 @@ using TarkoValheim.Util;
 namespace TarkoValheim.Stash
 {
     /// <summary>
-    /// Tetris layout for a chest, stash or grave. Valheim's grid is W x H
-    /// single cells; the Tetris grid is W wide and H * factor tall, since most
-    /// items now cover more than one cell.
+    /// Tetris layout for a chest, stash or grave: the same size as its real
+    /// inventory, which HideoutStash.Enlarge has already grown to the chest's
+    /// rows x ContainerHeightFactor. One real cell per Tetris cell means a
+    /// chest is never "full" while its grid still shows space.
     /// </summary>
     internal sealed class ContainerLayout
     {
@@ -17,8 +18,7 @@ namespace TarkoValheim.Stash
         private ContainerLayout(Inventory inventory)
         {
             Inventory = inventory;
-            int factor = System.Math.Max(1, Plugin.ContainerHeightFactor.Value);
-            Grid = new TGrid(Loadout.ContainerGrid, inventory.GetWidth(), inventory.GetHeight() * factor);
+            Grid = new TGrid(Loadout.ContainerGrid, inventory.GetWidth(), inventory.GetHeight());
         }
 
         /// <summary>Builds the layout and gives unplaced items a spot.

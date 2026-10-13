@@ -78,6 +78,7 @@ namespace TarkoValheim.Stash.UI
         private Vector2 _grab;
         private RectTransform _ghost;
         private Image _ghostTint;
+        private Text _ghostLabel;
 
         public static void MarkDirty()
         {
@@ -507,6 +508,10 @@ namespace TarkoValheim.Stash.UI
             var icon = UiKit.Image(_ghost, "Icon", Color.white, false);
             icon.sprite = view.Item.GetIcon();
             icon.preserveAspect = true;
+            _ghostLabel = UiKit.Text(_ghost, "Discard", UiKit.L("$tv_ui_discard"), 14, Color.white, TextAnchor.MiddleCenter);
+            _ghostLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            UiKit.Stretch(_ghostLabel.rectTransform);
+            _ghostLabel.gameObject.SetActive(false);
             SizeGhost();
 
             var group = view.GetComponent<CanvasGroup>() ?? view.gameObject.AddComponent<CanvasGroup>();
@@ -547,6 +552,11 @@ namespace TarkoValheim.Stash.UI
 
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_root, e.position, null, out var local);
             _ghost.localScale = Vector3.one * _fitScale;
+            if (_ghostLabel != null)
+            {
+                var over = FindTarget(e.position, out _);
+                _ghostLabel.gameObject.SetActive(over != null && over.Ground);
+            }
             _ghost.anchoredPosition = local + new Vector2(-_grab.x, _grab.y) * _fitScale;
             _ghost.SetAsLastSibling();
 
@@ -569,7 +579,7 @@ namespace TarkoValheim.Stash.UI
             }
             else if (target.Ground)
             {
-                _ghostTint.color = UiKit.AccentDim;
+                _ghostTint.color = Loc.IsLocked(_dragView.Item) ? UiKit.Bad : new Color(0.85f, 0.45f, 0.1f, 0.6f);
             }
             else if (target.Quick >= 0)
             {

@@ -111,6 +111,11 @@ on the right of the GEAR tab as one scrolling list.
 
 - **Moving items.** Drag between chests and your grids, or Ctrl+click to
   send an item to the first chest with room.
+- **Stash buttons.**
+  - SORT STASH merges part stacks and lays each chest out by kind.
+  - TRANSFER ALL TO STASH moves everything you carry loose (pockets, rig,
+    backpack, unsorted) into the stash, onto matching stacks first. Worn and
+    held gear, the pouch, locked items and quick-use items stay with you.
 - **Crafting.** Crafting in the hideout uses materials from the stash as
   well as what you carry.
 - **Building.** So does building with the hammer. What you carry is used
@@ -177,7 +182,7 @@ Item controls:
 | Lock | middle-click |
 | Menu | right-click |
 | Swap two items of the same size | drop one on the other |
-| Drop on the ground | the *drop here to discard* box |
+| Drop on the ground | drag onto the *drop here to discard* box (bottom right). With no chest open, the whole right column is a discard zone. |
 
 ### Tetris inventory (from 0.3.0)
 

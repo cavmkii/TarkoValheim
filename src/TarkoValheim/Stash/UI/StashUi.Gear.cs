@@ -331,7 +331,15 @@ namespace TarkoValheim.Stash.UI
             {
                 UiKit.Header(col, UiKit.L("$tv_ui_stash"), "", 0f, 0f, w);
                 var hint = UiKit.Text(col, "Hint", UiKit.L("$tv_ui_stash_hint"), 15, UiKit.Muted, TextAnchor.UpperLeft);
-                UiKit.TopLeft(hint.rectTransform, 0f, 34f, w, 200f);
+                UiKit.TopLeft(hint.rectTransform, 0f, 34f, w, 80f);
+
+                // Nothing open: the rest of the column is somewhere to drop things.
+                var zone = UiKit.Image(col, "DiscardZone", new Color(0.12f, 0.07f, 0.04f, 0.6f));
+                UiKit.TopLeft(zone.rectTransform, 0f, 130f, w, ColumnH - 130f);
+                UiKit.Border(zone.transform, UiKit.AccentDim, 2f);
+                var label = UiKit.Text(zone.transform, "Label", UiKit.L("$tv_ui_discard_zone"), 20, UiKit.Accent, TextAnchor.MiddleCenter);
+                UiKit.Stretch(label.rectTransform, 20f);
+                _targets.Add(new DropTarget { Rect = zone.rectTransform, Ground = true });
                 return;
             }
 
@@ -425,6 +433,29 @@ namespace TarkoValheim.Stash.UI
                 $"{used}/{total}", 0f, 0f, naturalW);
             FilterStrip(col, naturalW, 28f);
 
+            // Stash tools.
+            var sortStash = UiKit.Button(col, "SortStash", UiKit.L("$tv_ui_sort_stash"), () =>
+            {
+                var player = Player.m_localPlayer;
+                int n = StashTools.SortStash(player, containers);
+                player.Message(MessageHud.MessageType.TopLeft, string.Format(UiKit.L("$tv_msg_stash_sorted"), n), 0, null, false);
+                MarkDirty();
+            }, false, 13);
+            UiKit.TopLeft((RectTransform)sortStash.transform, 0f, 58f, 180f, 26f);
+            var transfer = UiKit.Button(col, "TransferAll", UiKit.L("$tv_ui_transfer_all"), () =>
+            {
+                var player = Player.m_localPlayer;
+                var result = StashTools.TransferAll(player, containers);
+                string msg = string.Format(UiKit.L("$tv_msg_transferred"), result.Key);
+                if (result.Value > 0)
+                {
+                    msg += "  " + string.Format(UiKit.L("$tv_msg_transfer_left"), result.Value);
+                }
+                player.Message(MessageHud.MessageType.Center, msg, 0, null, false);
+                MarkDirty();
+            }, true, 13);
+            UiKit.TopLeft((RectTransform)transfer.transform, 190f, 58f, 220f, 26f);
+
             // Content height first, for the scroll view.
             float contentH = 0f;
             foreach (var cl in layouts)
@@ -437,7 +468,7 @@ namespace TarkoValheim.Stash.UI
                 }
             }
 
-            float top = 60f;
+            float top = 92f;
             float viewH = Mathf.Min(contentH, ColumnH - top);
             var content = ScrollArea(col, "stash", 0f, top, naturalW, viewH, contentH, out var viewport);
 
