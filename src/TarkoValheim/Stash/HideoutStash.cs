@@ -30,11 +30,54 @@ namespace TarkoValheim.Stash
                 return;
             }
             harmony.Patch(awake, postfix: new HarmonyMethod(typeof(HideoutStash), nameof(AwakePostfix)));
+
+            // Belt and braces: make sure the size is right before contents load.
+            var load = AccessTools.Method(typeof(Container), "Load");
+            if (load != null)
+            {
+                harmony.Patch(load, prefix: new HarmonyMethod(typeof(HideoutStash), nameof(LoadPrefix)));
+            }
         }
 
         private static void AwakePostfix(Container __instance)
         {
             All.Add(__instance);
+            Enlarge(__instance);
+        }
+
+        private static void LoadPrefix(Container __instance)
+        {
+            Enlarge(__instance);
+        }
+
+        /// <summary>
+        /// Gives a chest's real inventory as many cells as its Tetris grid
+        /// shows (rows x ContainerHeightFactor). Every item, even a 1x1 stack,
+        /// takes one real cell, so without this a chest ran out of real room
+        /// while its grid still looked half empty. Done before the chest loads
+        /// its contents, and only ever grows. Graves are left alone: their
+        /// size comes from the inventory moved into them.
+        /// </summary>
+        private static void Enlarge(Container container)
+        {
+            try
+            {
+                var inventory = container != null ? container.GetInventory() : null;
+                if (inventory == null || container.GetComponent<TombStone>() != null)
+                {
+                    return;
+                }
+                int rows = GameAccess.ContainerRows(container);
+                int want = rows * System.Math.Max(1, Plugin.ContainerHeightFactor.Value);
+                if (rows > 0 && GameAccess.GetHeight(inventory) < want)
+                {
+                    GameAccess.SetHeight(inventory, want);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("HideoutStash.Enlarge", e);
+            }
         }
 
         public static bool PlayerInHideout(Player player)
