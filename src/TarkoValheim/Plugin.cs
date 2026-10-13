@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.6.2";
+        public const string PluginVersion = "0.7.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -37,6 +37,7 @@ namespace TarkoValheim
         internal static ConfigEntry<bool> HealthConditions;
         internal static ConfigEntry<bool> PartRecipes;
         internal static ConfigEntry<float> CraftSeconds;
+        internal static ConfigEntry<bool> BuildFromStash;
 
         internal static ConfigEntry<bool> TetrisInventory;
         internal static ConfigEntry<int> CellSize;
@@ -60,6 +61,7 @@ namespace TarkoValheim
             Guarded("DeathRules", () => DeathRules.Patch(_harmony));
             Guarded("InventoryHooks", () => InventoryHooks.Patch(_harmony));
             Guarded("HideoutStash", () => HideoutStash.Patch(_harmony));
+            Guarded("StashBuilding", () => StashBuilding.Patch(_harmony));
             Guarded("WeaponPatches", () => WeaponPatches.Patch(_harmony));
             Guarded("Hostility", () => Hostility.Patch(_harmony));
             Guarded("PortalRules", () => PortalRules.Patch(_harmony));
@@ -154,6 +156,10 @@ namespace TarkoValheim
             CraftSeconds = Config.Bind("Crafting", "CraftSeconds", 2f,
                 new ConfigDescription("Seconds a craft takes (upgrades take half again as long). 0 crafts instantly.",
                     new AcceptableValueRange<float>(0f, 30f)));
+
+            BuildFromStash = Config.Bind("Crafting", "BuildFromStash", true,
+                new ConfigDescription("If true, building with the hammer inside a hideout can use materials from the stash.",
+                    null, admin));
 
             HealthConditions = Config.Bind("Health", "BleedsAndFractures", true,
                 new ConfigDescription("If true, hits can cause bleeds and fractures that need treating.", null, admin));

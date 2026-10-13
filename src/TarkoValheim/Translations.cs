@@ -73,6 +73,9 @@ namespace TarkoValheim
 
                 { "tv_menu_rotate", "Rotate" },
                 { "tv_menu_lock", "Lock" },
+                { "tv_menu_dismantle", "Dismantle (to stash)" },
+                { "tv_msg_dismantled", "Dismantled" },
+                { "tv_msg_dismantle_dropped", "The stash and your bags are full: some materials were dropped at your feet." },
                 { "tv_key_dblclick", "Dbl-click" },
                 { "tv_menu_unlock", "Unlock" },
                 { "tv_err_locked", "That item is locked (middle-click to unlock)." },
