@@ -652,6 +652,7 @@ namespace TarkoValheim.Stash.UI
             {
                 Corner(bg, UiKit.L("$tv_badge_" + partSpec.Slot.ToString().ToLowerInvariant()), 10, new Color(0.95f, 0.8f, 0.55f), TextAnchor.UpperLeft);
                 Corner(bg, "Lv" + Mathf.Max(1, item.m_quality), 10, gold, TextAnchor.LowerRight);
+                FamilyBadges(bg.rectTransform, partSpec, 3f, h - 2f - 3f - 16f, 16f);
             }
 
             // Arrows and bolts: what they are, briefly.
@@ -718,6 +719,93 @@ namespace TarkoValheim.Stash.UI
             view.Inventory = inventory;
             view.Rotated = rotated;
             view.Cell = Plugin.CellSize.Value;
+        }
+
+        // ------------------------------------------------------------------
+        // What a part is for, at a glance
+
+        private static readonly Dictionary<WeaponFamily, string[]> FamilyIconSources = new Dictionary<WeaponFamily, string[]>
+        {
+            { WeaponFamily.Sword, new[] { "SwordIron", "SwordBronze" } },
+            { WeaponFamily.Knife, new[] { "KnifeCopper", "KnifeFlint" } },
+            { WeaponFamily.Axe, new[] { "AxeBronze", "AxeStone" } },
+            { WeaponFamily.Club, new[] { "MaceBronze", "Club" } },
+            { WeaponFamily.Spear, new[] { "SpearBronze", "SpearFlint" } },
+            { WeaponFamily.Polearm, new[] { "AtgeirBronze", "AtgeirIron" } },
+            { WeaponFamily.Bow, new[] { "BowFineWood", "Bow" } },
+            { WeaponFamily.Crossbow, new[] { "CrossbowArbalest" } },
+            { WeaponFamily.Shield, new[] { "ShieldWood", "ShieldBronzeBuckler" } },
+            { WeaponFamily.Helmet, new[] { "HelmetBronze", "HelmetLeather" } },
+            { WeaponFamily.Chest, new[] { "ArmorBronzeChest", "ArmorLeatherChest" } },
+            { WeaponFamily.Legs, new[] { "ArmorBronzeLegs", "ArmorLeatherLegs" } },
+        };
+
+        private static readonly Dictionary<WeaponFamily, Sprite> FamilyIcons = new Dictionary<WeaponFamily, Sprite>();
+
+        private static Sprite FamilyIcon(WeaponFamily family)
+        {
+            if (FamilyIcons.TryGetValue(family, out var cached) && cached != null)
+            {
+                return cached;
+            }
+            Sprite sprite = null;
+            if (ObjectDB.instance != null && FamilyIconSources.TryGetValue(family, out var names))
+            {
+                foreach (var n in names)
+                {
+                    var go = ObjectDB.instance.GetItemPrefab(n);
+                    var drop = go != null ? go.GetComponent<ItemDrop>() : null;
+                    if (drop != null)
+                    {
+                        sprite = drop.m_itemData.GetIcon();
+                        break;
+                    }
+                }
+            }
+            FamilyIcons[family] = sprite;
+            return sprite;
+        }
+
+        /// <summary>
+        /// Small icons of what a part fits (a sword and a knife for a blade).
+        /// A part that fits nearly everything gets a word instead: WEAPONS
+        /// for grips, ALL for wraps. Returns the width used.
+        /// </summary>
+        public static float FamilyBadges(RectTransform parent, PartSpec part, float x, float y, float size)
+        {
+            var fits = new List<WeaponFamily>();
+            foreach (WeaponFamily f in System.Enum.GetValues(typeof(WeaponFamily)))
+            {
+                if (f != WeaponFamily.None && WeaponParts.Fits(part, f))
+                {
+                    fits.Add(f);
+                }
+            }
+
+            if (fits.Count > 4)
+            {
+                bool armorToo = fits.Exists(WeaponParts.IsArmor);
+                var word = UiKit.Text(parent, "Fits", UiKit.L(armorToo ? "$tv_badge_fits_all" : "$tv_badge_fits_weapons"), 9,
+                    new Color(0.75f, 0.85f, 1f), TextAnchor.LowerLeft);
+                word.horizontalOverflow = HorizontalWrapMode.Overflow;
+                UiKit.TopLeft(word.rectTransform, x, y, 80f, size);
+                return 50f;
+            }
+
+            for (int i = 0; i < fits.Count; i++)
+            {
+                var plate = UiKit.Image(parent, "Fits", new Color(0f, 0f, 0f, 0.55f), false);
+                UiKit.TopLeft(plate.rectTransform, x + i * (size + 1f), y, size, size);
+                var sprite = FamilyIcon(fits[i]);
+                if (sprite != null)
+                {
+                    var icon = UiKit.Image(plate.transform, "Icon", Color.white, false);
+                    icon.sprite = sprite;
+                    icon.preserveAspect = true;
+                    UiKit.Stretch(icon.rectTransform, 1f);
+                }
+            }
+            return fits.Count * (size + 1f);
         }
 
         private static void Corner(Image bg, string text, int size, Color color, TextAnchor anchor)

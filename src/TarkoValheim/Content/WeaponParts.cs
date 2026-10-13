@@ -13,7 +13,9 @@ namespace TarkoValheim.Content
         Head,
         Handle,
         Guard,
-        Wrap
+        Wrap,    // weapons: wrap / string; shields and armor: straps
+        Plate,   // armor: the protective shell
+        Padding  // armor: what's underneath
     }
 
     /// <summary>The kinds of head; each fits only its own weapon families.</summary>
@@ -38,7 +40,10 @@ namespace TarkoValheim.Content
         Polearm,
         Bow,
         Crossbow,
-        Shield
+        Shield,
+        Helmet,
+        Chest,
+        Legs
     }
 
     /// <summary>
@@ -71,6 +76,8 @@ namespace TarkoValheim.Content
         public float Parry, ParryStep;
         public float Spirit, SpiritStep;        // extra spirit damage, fraction of physical
         public float Fire, FireStep;            // extra fire damage, fraction of physical
+        public float Armor, ArmorStep;          // armor pieces only
+        public float WeightMod, WeightStep;     // armor pieces only; negative = lighter
 
         public float At(float baseValue, float step, int level) => baseValue + step * (Mathf.Clamp(level, 1, 4) - 1);
     }
@@ -95,6 +102,12 @@ namespace TarkoValheim.Content
             { HeadKind.MaceHead, new[] { new[] { "MaceBronze" }, new[] { "MaceIron" }, new[] { "MaceSilver" }, new[] { "MaceNeedle" }, new[] { "MaceEldner", "MaceNeedle" } } },
             { HeadKind.SpearHead, new[] { new[] { "SpearBronze" }, new[] { "SpearElderbark" }, new[] { "SpearWolfFang" }, new[] { "SpearCarapace" }, new[] { "SpearSplitner", "SpearCarapace" } } },
             { HeadKind.Limbs, new[] { new[] { "BowFineWood" }, new[] { "BowHuntsman" }, new[] { "BowDraugrFang" }, new[] { "BowSpineSnap" }, new[] { "BowAshlands", "BowSpineSnap" } } },
+        };
+
+        private static readonly string[][] PlateIcons =
+        {
+            new[] { "ArmorBronzeChest" }, new[] { "ArmorIronChest" }, new[] { "ArmorWolfChest" },
+            new[] { "ArmorPaddedCuirass" }, new[] { "ArmorFlametalChest", "ArmorPaddedCuirass" }
         };
 
         internal static readonly List<PartSpec> All = Build();
@@ -151,10 +164,20 @@ namespace TarkoValheim.Content
             }
         }
 
+        public static bool IsArmor(WeaponFamily family) =>
+            family == WeaponFamily.Helmet || family == WeaponFamily.Chest || family == WeaponFamily.Legs;
+
         public static IEnumerable<PartSlot> SlotsOf(WeaponFamily family)
         {
             if (family == WeaponFamily.None)
             {
+                yield break;
+            }
+            if (IsArmor(family))
+            {
+                yield return PartSlot.Plate;
+                yield return PartSlot.Padding;
+                yield return PartSlot.Wrap;
                 yield break;
             }
             if (HeadFor(family) != HeadKind.None)
@@ -213,9 +236,13 @@ namespace TarkoValheim.Content
                     }
                 case PartSlot.Guard:
                     return family == WeaponFamily.Shield ? "$tv_slot_rim" : family == WeaponFamily.Polearm ? "$tv_slot_langet" : "$tv_slot_guard";
+                case PartSlot.Plate:
+                    return family == WeaponFamily.Helmet ? "$tv_slot_helmshell" : family == WeaponFamily.Legs ? "$tv_slot_greaves" : "$tv_slot_plates";
+                case PartSlot.Padding:
+                    return family == WeaponFamily.Helmet ? "$tv_slot_liner" : "$tv_slot_padding";
                 default:
                     return family == WeaponFamily.Bow || family == WeaponFamily.Crossbow ? "$tv_slot_string"
-                        : family == WeaponFamily.Shield ? "$tv_slot_straps" : "$tv_slot_wrap";
+                        : family == WeaponFamily.Shield || IsArmor(family) ? "$tv_slot_straps" : "$tv_slot_wrap";
             }
         }
 
@@ -251,12 +278,31 @@ namespace TarkoValheim.Content
                     Requirements = new[] { R(Woods[i], 4, 2) }
                 });
 
+                // Wraps double as armor straps: on armor they make it lighter.
                 list.Add(new PartSpec
                 {
                     Id = "TV_Wrap_" + HideKeys[i], Base = Hides[i], Slot = PartSlot.Wrap, Tier = t, Material = Hides[i],
                     Weight = 0.2f, Station = "piece_workbench", StationLevel = WorkbenchLevel(t),
                     Stamina = -0.02f * t, StaminaStep = -0.01f, Block = 0.02f * t, BlockStep = 0.01f,
+                    WeightMod = -0.04f * t, WeightStep = -0.02f,
                     Requirements = new[] { R(Hides[i], 2, 1) }
+                });
+
+                // Armor plates (metal) and padding (hide).
+                list.Add(new PartSpec
+                {
+                    Id = "TV_Plate_" + MetalKeys[i], Base = metal, Slot = PartSlot.Plate, Tier = t, Material = metal,
+                    SizeW = 2, SizeH = 2, Weight = 1.5f, Station = forge, StationLevel = forgeLevel,
+                    IconFrom = PlateIcons[i],
+                    Armor = 0.06f * t, ArmorStep = 0.025f, Durability = 0.05f * t, DurabilityStep = 0.05f,
+                    Requirements = new[] { R(metal, 6, 3) }
+                });
+                list.Add(new PartSpec
+                {
+                    Id = "TV_Padding_" + HideKeys[i], Base = Hides[i], Slot = PartSlot.Padding, Tier = t, Material = Hides[i],
+                    SizeW = 2, Weight = 0.5f, Station = "piece_workbench", StationLevel = WorkbenchLevel(t),
+                    Armor = 0.02f * t, ArmorStep = 0.01f, Durability = 0.04f * t, DurabilityStep = 0.04f,
+                    Requirements = new[] { R(Hides[i], 3, 1) }
                 });
             }
             return list;

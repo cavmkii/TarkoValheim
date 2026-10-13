@@ -382,6 +382,15 @@ namespace TarkoValheim.Stash.UI
             var label = UiKit.Text(bg.transform, "Name", name, 16, entry.CanCraft ? Color.white : UiKit.Muted, TextAnchor.MiddleLeft);
             UiKit.TopLeft(label.rectTransform, h + 6f, 0f, w - h - 180f, h);
 
+            // Parts: what they're for, right of the name.
+            var partSpec = Content.WeaponParts.Find(entry.Recipe.m_item.name);
+            if (partSpec != null)
+            {
+                label.alignment = TextAnchor.UpperLeft;
+                UiKit.TopLeft(label.rectTransform, h + 6f, 8f, w - h - 180f, 24f);
+                FamilyBadges(bg.rectTransform, partSpec, h + 6f, h - 26f, 18f);
+            }
+
             string state;
             Color stateColor;
             if (entry.CanCraft)

@@ -1,4 +1,5 @@
 using HarmonyLib;
+using TarkoValheim.Content;
 using TarkoValheim.Util;
 using UnityEngine;
 
@@ -23,6 +24,22 @@ namespace TarkoValheim.Modding
             Hook(harmony, AccessTools.Method(item, "GetDeflectionForce", new[] { typeof(int) }), nameof(ParryPostfix), "parry");
             Hook(harmony, AccessTools.Method(typeof(Attack), "GetAttackStamina"), nameof(StaminaPostfix), "stamina");
             _attackWeapon = AccessTools.Field(typeof(Attack), "m_weapon");
+
+            // Armor pieces: armor value and weight.
+            Hook(harmony, AccessTools.Method(item, "GetArmor", new[] { typeof(int), typeof(float) }), nameof(ArmorPostfix), "armor");
+            int weights = 0;
+            foreach (var m in AccessTools.GetDeclaredMethods(item))
+            {
+                if (m.Name == "GetWeight" && m.ReturnType == typeof(float) && !m.IsStatic)
+                {
+                    harmony.Patch(m, postfix: new HarmonyMethod(typeof(WeaponPatches), nameof(WeightPostfix)));
+                    weights++;
+                }
+            }
+            if (weights == 0)
+            {
+                Plugin.Log.LogWarning("Armor parts: GetWeight not found; parts won't change armor weight.");
+            }
         }
 
         private static void Hook(Harmony harmony, System.Reflection.MethodInfo target, string postfix, string what)
@@ -113,6 +130,38 @@ namespace TarkoValheim.Modding
             catch (System.Exception e)
             {
                 GameAccess.WarnOnce("WeaponPatches.Parry", e);
+            }
+        }
+
+        private static void ArmorPostfix(ItemDrop.ItemData __instance, ref float __result)
+        {
+            try
+            {
+                var t = WeaponMods.Totals(__instance);
+                if (t.Active && WeaponParts.IsArmor(WeaponMods.FamilyOf(__instance)))
+                {
+                    __result *= Mathf.Max(0.2f, 1f + t.Armor);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("WeaponPatches.Armor", e);
+            }
+        }
+
+        private static void WeightPostfix(ItemDrop.ItemData __instance, ref float __result)
+        {
+            try
+            {
+                var t = WeaponMods.Totals(__instance);
+                if (t.Active && t.Weight != 0f && WeaponParts.IsArmor(WeaponMods.FamilyOf(__instance)))
+                {
+                    __result *= Mathf.Max(0.2f, 1f + t.Weight);
+                }
+            }
+            catch (System.Exception e)
+            {
+                GameAccess.WarnOnce("WeaponPatches.Weight", e);
             }
         }
 
