@@ -7,19 +7,39 @@ using UnityEngine;
 
 namespace TarkoValheim.Stash.UI
 {
+    internal enum CraftMode
+    {
+        Craft,
+        Upgrade
+    }
+
     /// <summary>
-    /// CRAFTING tab: the recipe list on the left (what you can make right now
-    /// at the top), the selected recipe on the right with what it needs and
-    /// what you have. Works at any station, or by hand with none.
+    /// CRAFTING tab, with CRAFT and UPGRADE sub-tabs: the list on the left
+    /// (what you can do right now at the top), the selected recipe on the
+    /// right with what it needs and what you have. Works at any station, or
+    /// by hand with none. Crafting takes a moment, shown by a progress bar.
     /// </summary>
     internal partial class StashUi
     {
         private Recipe _craftSelection;
         private ItemDrop.ItemData _craftUpgrade;
+        private CraftMode _craftMode = CraftMode.Craft;
+
+        // The craft in progress, if any.
+        private CraftEntry _crafting;
+        private CraftingStation _craftingAt;
+        private float _craftStart;
+        private float _craftDuration;
+        private RectTransform _craftPopup;
+        private RectTransform _craftFill;
+        private Text _craftPercent;
 
         private void BuildCrafting(Player player, CraftingStation station)
         {
-            var entries = CraftService.Entries(player);
+            var all = CraftService.Entries(player);
+            var entries = all.FindAll(e => (e.Upgrade != null) == (_craftMode == CraftMode.Upgrade));
+            int readyCraft = all.FindAll(e => e.Upgrade == null && e.CanCraft).Count;
+            int readyUpgrade = all.FindAll(e => e.Upgrade != null && e.CanCraft).Count;
             CraftEntry selected = null;
             foreach (var e in entries)
             {
@@ -36,12 +56,12 @@ namespace TarkoValheim.Stash.UI
                 _craftUpgrade = selected.Upgrade;
             }
 
-            BuildRecipeList(player, station, entries, selected, 40f, 760f);
+            BuildRecipeList(player, station, entries, selected, readyCraft, readyUpgrade, 40f, 760f);
             BuildRecipeDetail(player, station, selected, 840f, 1040f);
         }
 
         private void BuildRecipeList(Player player, CraftingStation station, List<CraftEntry> entries, CraftEntry selected,
-            float x, float w)
+            int readyCraft, int readyUpgrade, float x, float w)
         {
             var col = UiKit.Rect("Recipes", _frame);
             float h = FrameH - BodyTop - 30f;
@@ -62,9 +82,26 @@ namespace TarkoValheim.Stash.UI
                     craftable++;
                 }
             }
-            var summary = UiKit.Text(col, "Summary", string.Format(UiKit.L("$tv_ui_recipes_summary"), entries.Count, craftable),
-                13, UiKit.Muted, TextAnchor.MiddleLeft);
-            UiKit.TopLeft(summary.rectTransform, 0f, y, w - 220f, 28f);
+            // CRAFT | UPGRADE, each with how many are ready now.
+            var modes = new[] { CraftMode.Craft, CraftMode.Upgrade };
+            for (int i = 0; i < modes.Length; i++)
+            {
+                var mode = modes[i];
+                int ready = mode == CraftMode.Craft ? readyCraft : readyUpgrade;
+                string label = UiKit.L(mode == CraftMode.Craft ? "$tv_ui_sub_craft" : "$tv_ui_sub_upgrade") + (ready > 0 ? $"  ({ready})" : "");
+                var tab = UiKit.Button(col, "Mode_" + mode, label, () =>
+                {
+                    if (_craftMode != mode)
+                    {
+                        _craftMode = mode;
+                        _craftSelection = null;
+                        _craftUpgrade = null;
+                        _savedScroll.Remove("recipes");
+                        MarkDirty();
+                    }
+                }, _craftMode == mode, 15);
+                UiKit.TopLeft((RectTransform)tab.transform, i * 184f, y, 180f, 32f);
+            }
 
             if (station != null)
             {
@@ -79,13 +116,19 @@ namespace TarkoValheim.Stash.UI
                     MarkDirty();
                 }, broken > 0, 14);
                 ((Button)repair).interactable = broken > 0;
-                UiKit.TopLeft((RectTransform)repair.transform, w - 210f, y, 210f, 28f);
+                UiKit.TopLeft((RectTransform)repair.transform, w - 210f, y + 2f, 210f, 28f);
             }
-            y += 36f;
+            y += 40f;
+
+            var summary = UiKit.Text(col, "Summary",
+                string.Format(UiKit.L(_craftMode == CraftMode.Craft ? "$tv_ui_recipes_summary" : "$tv_ui_upgrades_summary"), entries.Count, craftable),
+                13, UiKit.Muted, TextAnchor.MiddleLeft);
+            UiKit.TopLeft(summary.rectTransform, 0f, y, w, 22f);
+            y += 26f;
 
             if (entries.Count == 0)
             {
-                var none = UiKit.Text(col, "None", UiKit.L("$tv_ui_no_recipes"), 15, UiKit.Muted);
+                var none = UiKit.Text(col, "None", UiKit.L(_craftMode == CraftMode.Craft ? "$tv_ui_no_recipes" : "$tv_ui_no_upgrades"), 15, UiKit.Muted);
                 UiKit.TopLeft(none.rectTransform, 0f, y, w, 60f);
                 return;
             }
@@ -254,29 +297,149 @@ namespace TarkoValheim.Stash.UI
                 ry += 48f;
             }
 
-            string action = UiKit.L(entry.Upgrade != null ? "$tv_ui_upgrade_button" : "$tv_ui_craft_button");
-            var craft = UiKit.Button(col, "Craft", action, () =>
-            {
-                if (!CraftService.Craft(player, entry))
-                {
-                    ReportError();
-                }
-                else
-                {
-                    if (StashOps.LastError != null)
-                    {
-                        ReportError();
-                    }
-                    else
-                    {
-                        player.Message(MessageHud.MessageType.TopLeft,
-                            $"{UiKit.L("$tv_msg_crafted")} {UiKit.L(entry.Item.m_shared.m_name)}", 0, null, false);
-                    }
-                }
-                MarkDirty();
-            }, entry.CanCraft, 20);
-            ((Button)craft).interactable = entry.CanCraft;
+            bool busy = _crafting != null;
+            string action = UiKit.L(busy ? "$tv_ui_crafting_busy" : entry.Upgrade != null ? "$tv_ui_upgrade_button" : "$tv_ui_craft_button");
+            var craft = UiKit.Button(col, "Craft", action, () => StartCraft(player, entry, station), entry.CanCraft && !busy, 20);
+            ((Button)craft).interactable = entry.CanCraft && !busy;
             UiKit.TopLeft((RectTransform)craft.transform, w - 300f, h - 76f, 280f, 56f);
+        }
+    
+        // ------------------------------------------------------------------
+        // Crafting in progress
+
+        private void StartCraft(Player player, CraftEntry entry, CraftingStation station)
+        {
+            if (_crafting != null || entry == null || !entry.CanCraft)
+            {
+                return;
+            }
+
+            float seconds = Plugin.CraftSeconds.Value * (entry.Upgrade != null ? 1.5f : 1f);
+            if (seconds <= 0.01f)
+            {
+                FinishCraft(player, entry);
+                return;
+            }
+
+            _crafting = entry;
+            _craftingAt = station;
+            _craftStart = Time.time;
+            _craftDuration = seconds;
+            BuildCraftPopup(entry);
+            MarkDirty();
+        }
+
+        /// <summary>Called every frame from Update while the screen is open.</summary>
+        private void UpdateCraft(Player player, CraftingStation station)
+        {
+            if (_crafting == null)
+            {
+                return;
+            }
+            // Walking away from the station (or to another one) stops it.
+            if (station != _craftingAt || player.IsDead())
+            {
+                CancelCraft();
+                return;
+            }
+
+            float p = Mathf.Clamp01((Time.time - _craftStart) / _craftDuration);
+            if (_craftFill != null)
+            {
+                _craftFill.anchorMax = new Vector2(p, 1f);
+            }
+            if (_craftPercent != null)
+            {
+                _craftPercent.text = Mathf.FloorToInt(p * 100f) + "%";
+            }
+            if (p >= 1f)
+            {
+                var entry = _crafting;
+                CancelCraft();
+                FinishCraft(player, entry);
+            }
+        }
+
+        private void FinishCraft(Player player, CraftEntry entry)
+        {
+            // Rechecked by Craft: something may have moved during the wait.
+            if (!CraftService.Craft(player, entry))
+            {
+                ReportError();
+            }
+            else if (StashOps.LastError != null)
+            {
+                ReportError();
+            }
+            else
+            {
+                player.Message(MessageHud.MessageType.TopLeft,
+                    $"{UiKit.L(entry.Upgrade != null ? "$tv_msg_upgraded" : "$tv_msg_crafted")} {UiKit.L(entry.Item.m_shared.m_name)}", 0, null, false);
+            }
+            MarkDirty();
+        }
+
+        private void CancelCraft()
+        {
+            if (_craftPopup != null)
+            {
+                Destroy(_craftPopup.gameObject);
+            }
+            _craftPopup = null;
+            _craftFill = null;
+            _craftPercent = null;
+            if (_crafting != null)
+            {
+                _crafting = null;
+                MarkDirty();
+            }
+        }
+
+        // Lives on the canvas root, not the rebuilt content, so screen
+        // rebuilds during the wait don't touch it.
+        private void BuildCraftPopup(CraftEntry entry)
+        {
+            const float w = 560f;
+            const float h = 150f;
+            var border = UiKit.Image(_root, "CraftProgress", UiKit.Accent);
+            _craftPopup = border.rectTransform;
+            _craftPopup.anchorMin = _craftPopup.anchorMax = _craftPopup.pivot = new Vector2(0.5f, 0.5f);
+            _craftPopup.sizeDelta = new Vector2(w, h);
+            _craftPopup.anchoredPosition = new Vector2(0f, -40f * _fitScale);
+            _craftPopup.localScale = Vector3.one * _fitScale;
+            var fill = UiKit.Image(_craftPopup, "Fill", new Color(0.06f, 0.06f, 0.06f, 0.98f), false);
+            UiKit.Stretch(fill.rectTransform, 1f);
+
+            var iconBg = UiKit.Image(_craftPopup, "IconBg", UiKit.CellBg, false);
+            UiKit.TopLeft(iconBg.rectTransform, 16f, 16f, 90f, 90f);
+            var icon = UiKit.Image(iconBg.transform, "Icon", Color.white, false);
+            icon.sprite = (entry.Upgrade ?? entry.Item).GetIcon();
+            icon.preserveAspect = true;
+            UiKit.Stretch(icon.rectTransform, 8f);
+
+            string verb = UiKit.L(entry.Upgrade != null ? "$tv_ui_upgrading" : "$tv_ui_crafting_now");
+            string name = UiKit.L(entry.Item.m_shared.m_name);
+            if (entry.Upgrade != null)
+            {
+                name += $"  <color=#8a8a84>{entry.Quality - 1} > {entry.Quality}</color>";
+            }
+            var title = UiKit.Text(_craftPopup, "Title", $"<color=#e39b3b>{verb}</color>  {name}", 18, Color.white, TextAnchor.MiddleLeft);
+            UiKit.TopLeft(title.rectTransform, 122f, 18f, w - 140f, 28f);
+
+            var barBg = UiKit.Image(_craftPopup, "Bar", new Color(0f, 0f, 0f, 0.7f), false);
+            UiKit.TopLeft(barBg.rectTransform, 122f, 56f, w - 140f, 20f);
+            UiKit.Border(barBg.transform, new Color(1f, 1f, 1f, 0.08f), 1f);
+            var barFill = UiKit.Image(barBg.transform, "Fill", UiKit.Accent, false);
+            _craftFill = barFill.rectTransform;
+            _craftFill.anchorMin = Vector2.zero;
+            _craftFill.anchorMax = new Vector2(0f, 1f);
+            _craftFill.offsetMin = new Vector2(1f, 1f);
+            _craftFill.offsetMax = new Vector2(0f, -1f);
+            _craftPercent = UiKit.Text(barBg.transform, "Percent", "0%", 13, Color.white, TextAnchor.MiddleCenter);
+            UiKit.Stretch(_craftPercent.rectTransform);
+
+            var cancel = UiKit.Button(_craftPopup, "Cancel", UiKit.L("$tv_ui_cancel"), CancelCraft, false, 14);
+            UiKit.TopLeft((RectTransform)cancel.transform, w - 138f, 94f, 120f, 36f);
         }
     }
 }

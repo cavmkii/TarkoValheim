@@ -120,7 +120,10 @@ SKILLS and STATUS tabs.
 - **GEAR**: equipment slots, then rig / pockets / backpack / pouch grids,
   then the hideout stash or open chest (with a category filter), and a
   quick-use bar.
-- **CRAFTING**: replaces Valheim's panel. What you can make now is listed
+- **CRAFTING**: replaces Valheim's panel. It has CRAFT and UPGRADE sub-tabs,
+  and each shows how many are ready. Crafting takes 2 seconds (upgrades 3),
+  shown by a progress bar you can cancel. Walking away from the station
+  cancels it too. `Crafting/CraftSeconds` sets the time; 0 is instant. What you can make now is listed
   first, and each ingredient shows have / need.
 - **SKILLS**: every skill as a card with its level and progress.
 - **STATUS**: vitals, injuries, food, status effects, raid threat and rules.
