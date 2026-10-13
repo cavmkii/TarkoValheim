@@ -164,7 +164,7 @@ namespace TarkoValheim.Stash.UI
             }
 
             // Under ALL, a heading starts each category.
-            const float rowH = 58f;
+            const float rowH = 70f;
             const float headH = 28f;
             bool headings = _craftCategory == CraftCategory.All;
             float contentH = 0f;
@@ -388,7 +388,7 @@ namespace TarkoValheim.Stash.UI
             {
                 label.alignment = TextAnchor.UpperLeft;
                 UiKit.TopLeft(label.rectTransform, h + 6f, 8f, w - h - 180f, 24f);
-                FamilyBadges(bg.rectTransform, partSpec, h + 6f, h - 26f, 18f);
+                FamilyBadges(bg.rectTransform, partSpec, h + 6f, h - 36f, 30f);
             }
 
             string state;
@@ -463,6 +463,25 @@ namespace TarkoValheim.Stash.UI
             }
             var subText = UiKit.Text(col, "Sub", sub, 15, UiKit.Label);
             UiKit.TopLeft(subText.rectTransform, 190f, 80f, w - 210f, 60f);
+
+            // Parts: what they go into, big enough to read at a glance.
+            var fitsPart = Content.WeaponParts.Find(entry.Recipe.m_item.name);
+            if (fitsPart != null)
+            {
+                var fitsLabel = UiKit.Text(col, "FitsLabel", UiKit.L("$tv_ui_fits").ToUpperInvariant(), 13, UiKit.Muted, TextAnchor.MiddleLeft);
+                UiKit.TopLeft(fitsLabel.rectTransform, 190f, 146f, 50f, 40f);
+                float used = FamilyBadges(col, fitsPart, 240f, 146f, 40f);
+                var names = new List<string>();
+                foreach (Content.WeaponFamily f in System.Enum.GetValues(typeof(Content.WeaponFamily)))
+                {
+                    if (f != Content.WeaponFamily.None && Content.WeaponParts.Fits(fitsPart, f))
+                    {
+                        names.Add(UiKit.L("$tv_family_" + f.ToString().ToLowerInvariant()));
+                    }
+                }
+                var fitsNames = UiKit.Text(col, "FitsNames", string.Join(", ", names.ToArray()), 13, UiKit.Label, TextAnchor.MiddleLeft);
+                UiKit.TopLeft(fitsNames.rectTransform, 250f + used, 146f, w - 270f - used, 40f);
+            }
 
             string description;
             try

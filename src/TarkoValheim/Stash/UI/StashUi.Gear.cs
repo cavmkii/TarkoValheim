@@ -652,7 +652,8 @@ namespace TarkoValheim.Stash.UI
             {
                 Corner(bg, UiKit.L("$tv_badge_" + partSpec.Slot.ToString().ToLowerInvariant()), 10, new Color(0.95f, 0.8f, 0.55f), TextAnchor.UpperLeft);
                 Corner(bg, "Lv" + Mathf.Max(1, item.m_quality), 10, gold, TextAnchor.LowerRight);
-                FamilyBadges(bg.rectTransform, partSpec, 3f, h - 2f - 3f - 16f, 16f);
+                float badge = Mathf.Clamp(Mathf.Min(w, h) * 0.4f, 18f, 26f);
+                FamilyBadges(bg.rectTransform, partSpec, 3f, h - 2f - 3f - badge, badge);
             }
 
             // Arrows and bolts: what they are, briefly.
@@ -785,11 +786,11 @@ namespace TarkoValheim.Stash.UI
             if (fits.Count > 4)
             {
                 bool armorToo = fits.Exists(WeaponParts.IsArmor);
-                var word = UiKit.Text(parent, "Fits", UiKit.L(armorToo ? "$tv_badge_fits_all" : "$tv_badge_fits_weapons"), 9,
-                    new Color(0.75f, 0.85f, 1f), TextAnchor.LowerLeft);
+                var word = UiKit.Text(parent, "Fits", UiKit.L(armorToo ? "$tv_badge_fits_all" : "$tv_badge_fits_weapons"),
+                    Mathf.Max(9, Mathf.RoundToInt(size * 0.55f)), new Color(0.75f, 0.85f, 1f), TextAnchor.MiddleLeft);
                 word.horizontalOverflow = HorizontalWrapMode.Overflow;
-                UiKit.TopLeft(word.rectTransform, x, y, 80f, size);
-                return 50f;
+                UiKit.TopLeft(word.rectTransform, x, y, 160f, size);
+                return size * 3f;
             }
 
             for (int i = 0; i < fits.Count; i++)
