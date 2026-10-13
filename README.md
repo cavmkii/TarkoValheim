@@ -64,6 +64,8 @@ its slots, or drop a part straight onto the weapon in any grid.
 ### Raids
 
 - **Raid area.** Anywhere outside a Hideout bench's radius is raid.
+- **Hideout pins.** Every Hideout bench puts a pin on your map
+  (`Raid/HideoutMapPins`).
 - **Death in raid.** You lose everything except what's in your secure
   container (POUCH). In a hideout you die by normal rules.
 - **Threat rises with time.** The first 5 minutes are calm, so a quick run

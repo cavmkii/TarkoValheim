@@ -38,6 +38,7 @@ namespace TarkoValheim
         internal static ConfigEntry<bool> PartRecipes;
         internal static ConfigEntry<float> CraftSeconds;
         internal static ConfigEntry<bool> BuildFromStash;
+        internal static ConfigEntry<bool> HideoutMapPins;
 
         internal static ConfigEntry<bool> TetrisInventory;
         internal static ConfigEntry<int> CellSize;
@@ -156,6 +157,9 @@ namespace TarkoValheim
             CraftSeconds = Config.Bind("Crafting", "CraftSeconds", 2f,
                 new ConfigDescription("Seconds a craft takes (upgrades take half again as long). 0 crafts instantly.",
                     new AcceptableValueRange<float>(0f, 30f)));
+
+            HideoutMapPins = Config.Bind("Raid", "HideoutMapPins", true,
+                "If true, every Hideout bench puts a pin on your map. A deleted pin comes back the next time the hideout loads.");
 
             BuildFromStash = Config.Bind("Crafting", "BuildFromStash", true,
                 new ConfigDescription("If true, building with the hammer inside a hideout can use materials from the stash.",

@@ -110,12 +110,30 @@ namespace TarkoValheim.Content
     {
         internal static readonly HashSet<HideoutMarker> Active = new HashSet<HideoutMarker>();
 
+        private bool _needPin;
+
         private void Start()
         {
             var nview = GetComponent<ZNetView>();
             if (nview != null && nview.IsValid())
             {
                 Active.Add(this);
+                _needPin = Plugin.HideoutMapPins.Value;
+            }
+        }
+
+        // Every hideout gets a saved pin on the map, once. The map may not
+        // exist yet when the piece loads, so this keeps trying.
+        private void Update()
+        {
+            if (!_needPin || Player.m_localPlayer == null)
+            {
+                return;
+            }
+            var name = Localization.instance != null ? Localization.instance.Localize("$tv_hideout") : "Hideout";
+            if (GameAccess.AddMapPin(transform.position, name, "Icon2"))
+            {
+                _needPin = false;
             }
         }
 
