@@ -577,6 +577,12 @@ namespace TarkoValheim.Stash.UI
             {
                 _ghostTint.color = new Color(0.5f, 0.5f, 0.5f, 0.35f);
             }
+            else if (target.BodyPart >= 0)
+            {
+                var med = Health.Meds.Find(Gear.PrefabName(_dragView.Item));
+                _ghostTint.color = med != null && Health.Meds.WouldHelp(Player.m_localPlayer, med, (Health.BodyPart)target.BodyPart)
+                    ? UiKit.Good : UiKit.Bad;
+            }
             else if (target.Ground)
             {
                 _ghostTint.color = Loc.IsLocked(_dragView.Item) ? UiKit.Bad : new Color(0.85f, 0.45f, 0.1f, 0.6f);
@@ -623,6 +629,18 @@ namespace TarkoValheim.Stash.UI
                 {
                     StashOps.LastError = error ?? "$tv_err_part_doesnt_fit";
                     ReportError();
+                }
+            }
+            else if (target != null && target.BodyPart >= 0)
+            {
+                if (Health.Meds.Find(Gear.PrefabName(item)) == null)
+                {
+                    StashOps.LastError = "$tv_err_not_med";
+                    ReportError();
+                }
+                else
+                {
+                    Health.Meds.TreatWith(Player.m_localPlayer, item, from, (Health.BodyPart)target.BodyPart);
                 }
             }
             else if (target != null && target.Ground)
@@ -712,7 +730,7 @@ namespace TarkoValheim.Stash.UI
                     continue;
                 }
 
-                if (t.Quick >= 0 || t.ModSlot >= 0 || t.Ground)
+                if (t.Quick >= 0 || t.ModSlot >= 0 || t.Ground || t.BodyPart >= 0)
                 {
                     return t;
                 }
@@ -859,6 +877,24 @@ namespace TarkoValheim.Stash.UI
             if (WeaponMods.IsModular(item))
             {
                 Add("$tv_menu_modify", null, () => OpenModPanel(item, from));
+            }
+
+            // Meds: one entry per body part it would help, with how hurt it is.
+            var med = Health.Meds.Find(Gear.PrefabName(item));
+            if (med != null && own)
+            {
+                var player = Player.m_localPlayer;
+                foreach (var part in Health.Body.Parts)
+                {
+                    if (!Health.Meds.WouldHelp(player, med, part) || med.Painkiller > 0f)
+                    {
+                        continue;
+                    }
+                    var p = part;
+                    string label = string.Format(UiKit.L("$tv_menu_treat"), UiKit.L("$tv_part_" + part.ToString().ToLowerInvariant()),
+                        Mathf.RoundToInt(Health.Body.Percent(player, part) * 100f));
+                    entries.Add(new KeyValuePair<string, Action>(label, () => Health.Meds.TreatWith(player, item, from, p)));
+                }
             }
 
             // Turn it round where it lies, if there's room.

@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.11.0";
+        public const string PluginVersion = "0.12.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -35,6 +35,7 @@ namespace TarkoValheim
         internal static ConfigEntry<float> ThreatStepMinutes;
         internal static ConfigEntry<bool> PortalsOnlyInHideouts;
         internal static ConfigEntry<bool> HealthConditions;
+        internal static ConfigEntry<bool> LethalHeadThorax;
         internal static ConfigEntry<bool> PartRecipes;
         internal static ConfigEntry<float> CraftSeconds;
         internal static ConfigEntry<bool> BuildFromStash;
@@ -165,6 +166,12 @@ namespace TarkoValheim
 
             BuildFromStash = Config.Bind("Crafting", "BuildFromStash", true,
                 new ConfigDescription("If true, building with the hammer inside a hideout can use materials from the stash.",
+                    null, admin));
+
+            LethalHeadThorax = Config.Bind("Health", "LethalHeadThorax", false,
+                new ConfigDescription(
+                    "Tarkov rules: if your head or thorax is destroyed (0 health), you die. Off by default, since " +
+                    "Valheim's monsters hit hard and the head only holds 8% of your health.",
                     null, admin));
 
             HealthConditions = Config.Bind("Health", "BleedsAndFractures", true,

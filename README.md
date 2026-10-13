@@ -158,27 +158,55 @@ on the right of the GEAR tab as one scrolling list.
 - **What's left out.** Carts, ships, graves, private chests that aren't
   yours, and chests another player has open don't count.
 
-### Injuries and meds
+### Body parts, injuries and meds
 
-- **Bleeding.** Cutting and piercing hits can open a light or heavy bleed.
-  Heavy hits are likelier to. Bleeds drain health until treated.
-- **Fractures.** Heavy blunt hits and bad falls can fracture a bone: slow
-  sprinting and a slower jog until splinted.
-- **Meds.** Made at the Hideout:
+Your health is split over seven body parts, using Tarkov's proportions
+scaled to your max health:
+
+| Part | Share |
+|---|---|
+| Head | 35 |
+| Thorax | 85 |
+| Stomach | 70 |
+| Each arm | 60 |
+| Each leg | 65 |
+| **Total** | **440** |
+
+The parts always add up to Valheim's health bar.
+
+- **Hits land somewhere.** A hit damages the part at the height and side it
+  struck. Falls hit the legs. Damage to a destroyed part spreads to the
+  rest. Food regeneration heals damaged parts; poison and fire spread over
+  all of them.
+- **Destroyed parts.** A part at 0 doesn't heal by itself. It needs a
+  surgical kit, and until then your health can't climb past what the other
+  parts hold.
+  - A destroyed or broken **leg** slows you.
+  - A destroyed or broken **arm** makes attacks cost 50% more stamina.
+  - Painkillers hide both for 5 minutes.
+  - A destroyed head or thorax is lethal only with
+    `Health/LethalHeadThorax` on (off by default).
+- **Bleeds.** Cutting and piercing hits can open a light or heavy bleed on
+  the part they hit. It drains that part until treated.
+- **Fractures.** Heavy blunt hits to an arm or leg, and bad falls, can break
+  it.
+- **Meds.** Made at the Hideout (Medstation):
 
   | Item | Treats |
   |---|---|
-  | Bandage | light bleed |
-  | Tourniquet | any bleed |
-  | Splint | fracture |
-  | Painkillers | hide fracture pain for 5 minutes |
-  | Field kit | all bleeds, plus 30% health |
-  | Surgical kit | everything, plus 50% health |
+  | Bandage | a light bleed |
+  | Tourniquet | any bleed, arms and legs only |
+  | Splint | a fractured arm or leg |
+  | Painkillers | hide fracture and destroyed-limb effects for 5 minutes |
+  | Field kit | a part's bleeds, and heals it 30% of max health |
+  | Surgical kit | restores a destroyed part, stops its bleeding, sets it, and heals it |
 
-  Use them by double-click, a quick slot, or the menu. A med isn't used up
-  if there's nothing for it to treat.
-- **Where to see them.** Injuries show on the HUD and in the STATUS tab,
-  with what treats them.
+- **Treating a part.** Drag a med onto a body part on the STATUS tab; it
+  lists the meds you carry, ready to drag. Or right-click a med and choose
+  "Treat Left arm (40%)". Double-click or a quick slot treats whichever part
+  needs it most. A med isn't used up if there's nothing for it to do.
+- **STATUS tab.** Shows the body, each part's health and what's wrong with
+  it, plus your total health. The HUD lists injuries with their body part.
 
 ### The Tarkov screen
 

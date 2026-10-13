@@ -63,11 +63,21 @@ namespace TarkoValheim.Health
                 sb.Append('\n');
             }
 
-            foreach (var c in Conditions.Active(player))
+            foreach (var cp in Conditions.ActiveParts(player))
             {
+                var c = cp.Key;
                 string color = c == Condition.Fracture ? "#e3b23b" : "#e0604f";
                 sb.Append($"<color={color}>{UiKit.L("$tv_cond_" + c.ToString().ToLowerInvariant())}</color>");
+                sb.Append($" <color=#c8c2b2>{UiKit.L("$tv_part_" + cp.Value.ToString().ToLowerInvariant())}</color>");
                 sb.Append($"  <color=#8a8a84>{UiKit.L("$tv_cond_fix_" + c.ToString().ToLowerInvariant())}</color>\n");
+            }
+            foreach (var p in Body.Parts)
+            {
+                if (Body.Destroyed(player, p))
+                {
+                    sb.Append($"<color=#e0604f>{UiKit.L("$tv_part_" + p.ToString().ToLowerInvariant()).ToUpperInvariant()} {UiKit.L("$tv_tag_destroyed")}</color>");
+                    sb.Append($"  <color=#8a8a84>{UiKit.L("$tv_cond_fix_destroyed")}</color>\n");
+                }
             }
             float pain = Conditions.PainkillerLeft(player);
             if (pain > 0f)
