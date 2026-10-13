@@ -188,7 +188,31 @@ Item controls:
 - **Starter kit.** Every character starts with an Alpha, a Scav vest and a
   Sling bag.
 - **Pickups need room** in your grids.
-- **Existing characters.** Items that don't fit show up under UNSORTED.
+- **Pockets.** 5x2 single-cell pockets by default (`Inventory/PocketWidth`,
+  `PocketRows`).
+- **Hand slots.** These are your hotbar, keys 1-6. Any hand item fits any of
+  them, and new ones go to the matching kind first.
+
+  | Slot | Key | Meant for |
+  |---|---|---|
+  | WEAPON | 1 | weapons |
+  | WEAPON | 2 | weapons |
+  | OFF-HAND | 3 | shield or torch |
+  | TOOL | 4 | hammer, pickaxe, hoe, cultivator, fishing rod |
+  | TOOL | 5 | tools |
+  | TOOL | 6 | tools |
+
+  Keys 7-8 are quick-use bindings (meds, food).
+- **Finding room.** Anything without a place gets one in this order:
+  1. Gear and hand items take their slots first.
+  2. The rest go into the grids, biggest first.
+  3. Leftovers top up existing stacks.
+  4. If that still isn't enough, the rig, backpack and pockets are repacked.
+
+  Only what's left after all that shows as UNSORTED. Its DROP ALL button
+  drops the lot.
+- **SORT.** The SORT button above the rig repacks your grids on demand.
+  Locked items and the pouch are left alone.
 
 ### Removed in 0.5.0
 

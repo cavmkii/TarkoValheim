@@ -59,20 +59,10 @@ namespace TarkoValheim.Stash
                 }
 
                 var lo = Loadout.Build(player);
-                foreach (var item in lo.Unplaced.ToArray())
-                {
-                    if (lo.FindAutoLoc(item, out var loc))
-                    {
-                        lo.Apply(item, loc);
-                    }
-                    else
-                    {
-                        Loc.Clear(item);
-                    }
-                }
+                bool changed = PlaceUnplaced(lo);
 
                 lo.SyncEquipment();
-                bool moved = lo.NormalizeInternal();
+                bool moved = lo.NormalizeInternal() || changed;
 
                 Current = lo;
                 Version++;
@@ -94,6 +84,67 @@ namespace TarkoValheim.Stash
             {
                 _busy = false;
             }
+        }
+
+        /// <summary>
+        /// Finds a place for everything without one: gear and hand items first
+        /// (they take slots, not grid space), then the biggest. What still
+        /// doesn't fit tops up existing stacks, and failing that the grids are
+        /// repacked. Only what's left after all that is UNSORTED.
+        /// </summary>
+        private static bool PlaceUnplaced(Loadout lo)
+        {
+            if (lo.Unplaced.Count == 0)
+            {
+                return false;
+            }
+
+            var order = new List<ItemDrop.ItemData>(lo.Unplaced);
+            order.Sort((a, b) =>
+            {
+                int c = Loadout.PlacementRank(a).CompareTo(Loadout.PlacementRank(b));
+                return c != 0 ? c : Loadout.Area(b).CompareTo(Loadout.Area(a));
+            });
+
+            bool changed = false;
+            foreach (var item in order)
+            {
+                if (lo.FindAutoLoc(item, out var loc))
+                {
+                    lo.Apply(item, loc);
+                    changed = true;
+                }
+            }
+
+            if (lo.Unplaced.Count > 0)
+            {
+                changed |= lo.MergeStacks();
+            }
+            if (lo.Unplaced.Count > 0)
+            {
+                changed |= lo.Repack(false);
+            }
+            foreach (var item in lo.Unplaced)
+            {
+                Loc.Clear(item);
+            }
+            return changed;
+        }
+
+        /// <summary>The SORT button: lays the rig, backpack and pockets out again.</summary>
+        public static bool Sort(Player player)
+        {
+            bool ok = false;
+            Batch(player, () =>
+            {
+                var lo = Loadout.Build(player);
+                ok = lo.Repack(true);
+                if (ok)
+                {
+                    GameAccess.Changed(player.GetInventory());
+                }
+            });
+            return ok;
         }
 
         /// <summary>Runs <paramref name="action"/> without intermediate reconciles,

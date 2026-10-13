@@ -15,10 +15,14 @@ namespace TarkoValheim.Stash
         Rig,
         Backpack,
         Secure,
-        Primary,
-        Secondary,
-        Holster,
-        Melee
+        // Hand slots, on the hotbar. The names are kept from older versions
+        // (they're in saved item data); what they're for is in the comments.
+        Primary,    // weapon, key 1
+        Secondary,  // weapon, key 2
+        Holster,    // tool, key 4
+        Melee,      // off-hand: shield or torch, key 3
+        Tool2,      // tool, key 5
+        Tool3       // tool, key 6
     }
 
     /// <summary>
@@ -35,9 +39,12 @@ namespace TarkoValheim.Stash
         public const string SecureGrid = "sec";
         public const string ContainerGrid = "c";
 
-        public const int PocketCount = 4;
-        public const int QuickFirst = 4;
+        // Hotbar: hand slots on keys 1-6, quick-use bindings on 7-8.
+        public const int QuickFirst = 6;
         public const int QuickLast = 7;
+
+        public static readonly SlotId[] HandSlots =
+            { SlotId.Primary, SlotId.Secondary, SlotId.Melee, SlotId.Holster, SlotId.Tool2, SlotId.Tool3 };
 
         public readonly Player Player;
         public readonly Inventory Inventory;
@@ -100,7 +107,10 @@ namespace TarkoValheim.Stash
 
         private void CreateGrids()
         {
-            Grids[Pockets] = new TGrid(Pockets, PocketCount, 1) { SingleCellsOnly = true };
+            Grids[Pockets] = new TGrid(Pockets, Mathf.Clamp(Plugin.PocketWidth.Value, 1, 8), Mathf.Clamp(Plugin.PocketRows.Value, 1, 4))
+            {
+                SingleCellsOnly = true
+            };
             AddGearGrid(SlotId.Rig, RigGrid);
             AddGearGrid(SlotId.Backpack, PackGrid);
             AddGearGrid(SlotId.Secure, SecureGrid);
@@ -181,8 +191,10 @@ namespace TarkoValheim.Stash
             {
                 case SlotId.Primary: return 0;
                 case SlotId.Secondary: return 1;
-                case SlotId.Holster: return 2;
-                case SlotId.Melee: return 3;
+                case SlotId.Melee: return 2;
+                case SlotId.Holster: return 3;
+                case SlotId.Tool2: return 4;
+                case SlotId.Tool3: return 5;
                 default: return -1;
             }
         }
@@ -252,12 +264,227 @@ namespace TarkoValheim.Stash
             return false;
         }
 
+        /// <summary>Hammer, pickaxe, hoe, cultivator, fishing rod...</summary>
+        public static bool IsTool(ItemDrop.ItemData item)
+        {
+            return item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Tool
+                || item.m_shared.m_skillType == Skills.SkillType.Pickaxes
+                || Gear.PrefabName(item) == "FishingRod";
+        }
+
+        public static bool IsOffHand(ItemDrop.ItemData item)
+        {
+            var type = item.m_shared.m_itemType;
+            return type == ItemDrop.ItemData.ItemType.Shield || type == ItemDrop.ItemData.ItemType.Torch;
+        }
+
+        // Shields and torches go to the off-hand, tools to the tool slots,
+        // weapons to the weapon slots; each spills over to the next group.
         private static IEnumerable<SlotId> PreferredWeaponSlots(ItemDrop.ItemData item)
         {
-            if (item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.OneHandedWeapon)
+            if (!IsHandItem(item))
+            {
+                yield break;
+            }
+            if (IsOffHand(item))
             {
                 yield return SlotId.Melee;
+                yield return SlotId.Holster;
+                yield return SlotId.Tool2;
+                yield return SlotId.Tool3;
             }
+            else if (IsTool(item))
+            {
+                yield return SlotId.Holster;
+                yield return SlotId.Tool2;
+                yield return SlotId.Tool3;
+            }
+            else
+            {
+                yield return SlotId.Primary;
+                yield return SlotId.Secondary;
+            }
+        }
+
+        /// <summary>The order in which unplaced items are given a place: gear
+        /// first (it brings its own grid), then hand items (they take a slot
+        /// rather than grid space), then the biggest.</summary>
+        public static int PlacementRank(ItemDrop.ItemData item)
+        {
+            if (Gear.Find(item) != null)
+            {
+                return 0;
+            }
+            if (IsHandItem(item))
+            {
+                return 1;
+            }
+            return 2;
+        }
+
+        public static int Area(ItemDrop.ItemData item)
+        {
+            var s = ItemSizes.Of(item);
+            return s.x * s.y;
+        }
+
+        // ------------------------------------------------------------------
+        // Making room
+
+        /// <summary>Tops up existing stacks with unplaced items of the same
+        /// kind. Returns true if anything changed.</summary>
+        public bool MergeStacks()
+        {
+            bool changed = false;
+            foreach (var item in Unplaced.ToArray())
+            {
+                if (item.m_shared.m_maxStackSize <= 1)
+                {
+                    continue;
+                }
+                foreach (var other in Inventory.GetAllItems())
+                {
+                    if (other == item || !IsPlaced(other) || other.m_shared.m_name != item.m_shared.m_name
+                        || other.m_quality != item.m_quality || other.m_stack >= other.m_shared.m_maxStackSize)
+                    {
+                        continue;
+                    }
+                    int n = Mathf.Min(item.m_stack, other.m_shared.m_maxStackSize - other.m_stack);
+                    other.m_stack += n;
+                    item.m_stack -= n;
+                    changed = true;
+                    if (item.m_stack <= 0)
+                    {
+                        break;
+                    }
+                }
+                if (item.m_stack <= 0)
+                {
+                    Unplaced.Remove(item);
+                    Inventory.RemoveItem(item);
+                }
+            }
+            return changed;
+        }
+
+        /// <summary>
+        /// Lays the rig, backpack and pockets out again from scratch, biggest
+        /// items first, so gaps left by moving things around can be used.
+        /// Only applied if everything already placed still fits, and either
+        /// <paramref name="force"/> (the SORT button) or it found room for at
+        /// least one unplaced item. The pouch is left alone.
+        /// </summary>
+        public bool Repack(bool force)
+        {
+            if (!force && Unplaced.Count == 0)
+            {
+                return false;
+            }
+
+            var ids = new List<string>();
+            foreach (var id in new[] { RigGrid, PackGrid, Pockets })
+            {
+                if (Grids.ContainsKey(id))
+                {
+                    ids.Add(id);
+                }
+            }
+
+            var placed = new List<ItemDrop.ItemData>();
+            foreach (var id in ids)
+            {
+                var grid = Grids[id];
+                for (int x = 0; x < grid.W; x++)
+                {
+                    for (int y = 0; y < grid.H; y++)
+                    {
+                        var item = grid.At(x, y);
+                        if (item != null && !placed.Contains(item))
+                        {
+                            placed.Add(item);
+                        }
+                    }
+                }
+            }
+
+            var candidates = new List<ItemDrop.ItemData>(placed);
+            foreach (var item in Unplaced)
+            {
+                if (!Loc.IsLocked(item))
+                {
+                    candidates.Add(item);
+                }
+            }
+            // Locked items keep their place: leave them out of a repack.
+            foreach (var item in placed)
+            {
+                if (Loc.IsLocked(item))
+                {
+                    return false;
+                }
+            }
+
+            candidates.Sort((a, b) =>
+            {
+                int c = Area(b).CompareTo(Area(a));
+                if (c != 0) return c;
+                c = string.CompareOrdinal(a.m_shared.m_name, b.m_shared.m_name);
+                return c != 0 ? c : b.m_stack.CompareTo(a.m_stack);
+            });
+
+            var fresh = new Dictionary<string, TGrid>();
+            foreach (var id in ids)
+            {
+                var g = Grids[id];
+                fresh[id] = new TGrid(id, g.W, g.H) { SingleCellsOnly = g.SingleCellsOnly };
+            }
+
+            var locs = new Dictionary<ItemDrop.ItemData, Loc>();
+            foreach (var item in candidates)
+            {
+                // Small things: pockets, rig, pack. Big things: pack, rig.
+                var order = Area(item) == 1 ? new[] { Pockets, RigGrid, PackGrid } : new[] { PackGrid, RigGrid };
+                foreach (var id in order)
+                {
+                    if (fresh.TryGetValue(id, out var grid) && grid.FindSpot(item, out int x, out int y, out bool rot))
+                    {
+                        grid.Put(item, x, y, ItemSizes.Of(item, rot));
+                        locs[item] = new Loc { Grid = id, X = x, Y = y, Rot = rot };
+                        break;
+                    }
+                }
+            }
+
+            int gained = 0;
+            foreach (var item in Unplaced)
+            {
+                if (locs.ContainsKey(item))
+                {
+                    gained++;
+                }
+            }
+            foreach (var item in placed)
+            {
+                if (!locs.ContainsKey(item))
+                {
+                    return false;
+                }
+            }
+            if (!force && gained == 0)
+            {
+                return false;
+            }
+
+            foreach (var id in ids)
+            {
+                var g = Grids[id];
+                Grids[id] = new TGrid(id, g.W, g.H) { SingleCellsOnly = g.SingleCellsOnly };
+            }
+            foreach (var kv in locs)
+            {
+                Apply(kv.Key, kv.Value);
+            }
+            return true;
         }
 
         /// <summary>Records a location in the model and on the item.</summary>

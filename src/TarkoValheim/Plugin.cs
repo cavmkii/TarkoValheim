@@ -20,7 +20,7 @@ namespace TarkoValheim
     {
         public const string PluginGuid = "cavmkii.tarkovalheim";
         public const string PluginName = "TarkoValheim";
-        public const string PluginVersion = "0.8.0";
+        public const string PluginVersion = "0.9.0";
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -42,6 +42,8 @@ namespace TarkoValheim
 
         internal static ConfigEntry<bool> TetrisInventory;
         internal static ConfigEntry<int> CellSize;
+        internal static ConfigEntry<int> PocketWidth;
+        internal static ConfigEntry<int> PocketRows;
         internal static ConfigEntry<int> ContainerHeightFactor;
         internal static ConfigEntry<string> SizeOverrides;
 
@@ -175,6 +177,13 @@ namespace TarkoValheim
             CellSize = Config.Bind("Inventory", "CellSize", 48,
                 new ConfigDescription("Size of one inventory cell in pixels at 1080p.",
                     new AcceptableValueRange<int>(32, 72)));
+
+            PocketWidth = Config.Bind("Inventory", "PocketWidth", 5,
+                new ConfigDescription("Pockets per row. Each pocket holds one 1x1 item (or stack).",
+                    new AcceptableValueRange<int>(1, 8), admin));
+
+            PocketRows = Config.Bind("Inventory", "PocketRows", 2,
+                new ConfigDescription("Rows of pockets.", new AcceptableValueRange<int>(1, 4), admin));
 
             ContainerHeightFactor = Config.Bind("Inventory", "ContainerHeightFactor", 2,
                 new ConfigDescription(
