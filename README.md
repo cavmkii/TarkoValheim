@@ -163,7 +163,10 @@ SKILLS and STATUS tabs.
   then the hideout stash or open chest (with a category filter), and a
   quick-use bar.
 - **CRAFTING**: replaces Valheim's panel. It has CRAFT and UPGRADE sub-tabs,
-  and each shows how many are ready. Crafting takes 2 seconds (upgrades 3),
+  and each shows how many are ready. Category buttons filter the list: weapons,
+  tools, armor, rigs & packs, weapon parts, ammo, food & meds, materials,
+  other. Each button shows its count, and empty categories are hidden.
+  Under ALL, the list is grouped under category headings. Crafting takes 2 seconds (upgrades 3),
   shown by a progress bar you can cancel. Walking away from the station
   cancels it too. `Crafting/CraftSeconds` sets the time; 0 is instant. What you can make now is listed
   first, and each ingredient shows have / need.
